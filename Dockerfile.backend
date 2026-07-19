@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --no-audit --no-fund
+
+COPY . .
+
+# Build frontend for wrangler to serve
+RUN npm run build
+
+EXPOSE 8788
+
+CMD ["npx", "wrangler", "pages", "dev", "dist", "--d1=DB", "--r2=R2_BUCKET", "--local", "--ip", "0.0.0.0", "--port", "8788", "--compatibility-date=2024-01-01"]

@@ -1,0 +1,73 @@
+services:
+  # Frontend: React Vite dev server with HMR
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.wrangler
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install --no-audit --no-fund && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_PROXY_TARGET=http://backend:8788
+    depends_on:
+      - backend
+    networks:
+      - portfolio-net
+
+  # Backend: Cloudflare Pages Functions via Wrangler pages dev
+  # Serves both API (/api/*) and static dist
+  # Use node:20 (debian) not alpine because workerd needs glibc
+  backend:
+    image: node:20
+    working_dir: /app
+    volumes:
+      - .:/app
+      - backend_nm:/app/node_modules
+      - ./.wrangler:/app/.wrangler
+    ports:
+      - "8788:8788"
+    command: sh -c "npm install --no-audit --no-fund && npm run build && npx wrangler pages dev dist --d1=DB --r2=R2_BUCKET --local --ip 0.0.0.0 --port 8788 --compatibility-date=2024-01-01"
+    environment:
+      - NODE_ENV=development
+      - ENVIRONMENT=local
+    networks:
+      - portfolio-net
+
+  # One-shot init: creates D1 tables locally and R2 buckets (if needed)
+  init:
+    image: node:20
+    working_dir: /app
+    volumes:
+      - .:/app
+      - backend_nm:/app/node_modules
+      - ./.wrangler:/app/.wrangler
+    command: sh -c "npm install --no-audit --no-fund && npx wrangler d1 migrations apply portfolio-db --local && echo 'D1 local initialized' && ls -la .wrangler/state/v3/d1 || true"
+    networks:
+      - portfolio-net
+    profiles:
+      - init
+
+  # Tests runner: runs both frontend and workers tests
+  # Run: docker compose run --rm tests
+  tests:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /app/node_modules:/app/node_modules
+    command: sh -c "npm test && npm run test:workers"
+    networks:
+      - portfolio-net
+    profiles:
+      - test
+
+networks:
+  portfolio-net:
+    driver: bridge
+
+volumes:
+  backend_nm:
