@@ -14,15 +14,17 @@ BOOKING_CALENDAR_ID = "placeholder-booking@group.calendar.google.com"
 PERSONAL_CALENDAR_ID = "placeholder-personal@gmail.com"
 
 # Local bindings for `wrangler pages dev --local`
-# These IDs are placeholder for local dev only - real IDs set per env below
+# Prod ID used for local top-level too (so `migrations apply` without --env works)
+# Alpha ID: 30b1ea40-63cd-41ef-84d5-2d9007bea311, Prod ID: f6dfc0c2-a7db-4e4a-b2de-abc5926fbf8b
 [[d1_databases]]
 binding = "DB"
 database_name = "portfolio-db"
-database_id = "local-placeholder-portfolio-db"
+database_id = "f6dfc0c2-a7db-4e4a-b2de-abc5926fbf8b"
 
-[[r2_buckets]]
-binding = "R2_BUCKET"
-bucket_name = "portfolio-images"
+# R2 disabled for Slice 0 without billing - uncomment when R2 enabled via dashboard
+# [[r2_buckets]]
+# binding = "R2_BUCKET"
+# bucket_name = "portfolio-images"
 
 # Preview: PRs -> <hash>.portfolio-site.pages.dev
 [env.preview]
@@ -31,9 +33,9 @@ binding = "DB"
 database_name = "portfolio-db-preview"
 database_id = "preview-placeholder-id"
 
-[[env.preview.r2_buckets]]
-binding = "R2_BUCKET"
-bucket_name = "portfolio-images-preview"
+# [[env.preview.r2_buckets]]
+# binding = "R2_BUCKET"
+# bucket_name = "portfolio-images-preview"
 
 [env.preview.vars]
 ENVIRONMENT = "preview"
@@ -46,11 +48,11 @@ PERSONAL_CALENDAR_ID = "preview-personal@gmail.com"
 [[env.alpha.d1_databases]]
 binding = "DB"
 database_name = "portfolio-db-alpha"
-database_id = "alpha-placeholder-id"
+database_id = "30b1ea40-63cd-41ef-84d5-2d9007bea311"
 
-[[env.alpha.r2_buckets]]
-binding = "R2_BUCKET"
-bucket_name = "portfolio-images-alpha"
+# [[env.alpha.r2_buckets]]
+# binding = "R2_BUCKET"
+# bucket_name = "portfolio-images-alpha"
 
 [env.alpha.vars]
 ENVIRONMENT = "alpha"
@@ -63,11 +65,11 @@ PERSONAL_CALENDAR_ID = "alpha-personal@gmail.com"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "portfolio-db"
-database_id = "prod-placeholder-id"
+database_id = "f6dfc0c2-a7db-4e4a-b2de-abc5926fbf8b"
 
-[[env.production.r2_buckets]]
-binding = "R2_BUCKET"
-bucket_name = "portfolio-images"
+# [[env.production.r2_buckets]]
+# binding = "R2_BUCKET"
+# bucket_name = "portfolio-images"
 
 [env.production.vars]
 ENVIRONMENT = "production"

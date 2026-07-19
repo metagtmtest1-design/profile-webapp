@@ -12,7 +12,7 @@ export interface Env {
 interface HealthResponse {
   status: 'ok' | 'error' | 'degraded'
   db: 'ok' | 'error'
-  r2: 'ok' | 'error'
+  r2: 'ok' | 'error' | 'skipped'
   timestamp: string
   env: string
   checks: {
@@ -22,34 +22,36 @@ interface HealthResponse {
   dbError?: string
   r2Error?: string
   sampleImageUrl?: string
+  r2Note?: string
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   const timestamp = new Date().toISOString()
   const envName = getEnvironment(env as EnvVars)
   const siteUrl = (env as any)?.SITE_URL || ''
+  const hasR2Binding = !!env?.R2_BUCKET
 
   // Run checks in parallel but with independent error handling
   const [d1Result, r2Result] = await Promise.all([
     checkD1(env?.DB),
-    checkR2(env?.R2_BUCKET),
+    hasR2Binding ? checkR2(env?.R2_BUCKET) : Promise.resolve({ ok: true, ms: 0, skipped: true } as any),
   ])
 
   const dbStatus = d1Result.ok ? 'ok' : 'error'
-  const r2Status = r2Result.ok ? 'ok' : 'error'
+  // If no R2 binding, treat as skipped (ok for Slice 0 without R2 enabled)
+  const r2Status = !hasR2Binding ? 'skipped' : r2Result.ok ? 'ok' : 'error'
 
   let status: HealthResponse['status'] = 'ok'
-  if (!d1Result.ok && !r2Result.ok) {
+  // D1 must be ok. R2 is optional for Slice 0 when no binding (skipped), but if binding exists and fails, it's error
+  if (!d1Result.ok) {
     status = 'error'
-  } else if (!d1Result.ok || !r2Result.ok) {
-    status = 'error' // For slice 0, any failure = error (strict)
+  } else if (hasR2Binding && !r2Result.ok) {
+    status = 'error'
   }
 
-  // Sample image URL from R2 for frontend verification (if R2 works, construct URL)
-  // In real deploy, R2 images served via /r2 or custom domain, here we return placeholder path
   const sampleImageUrl = r2Result.ok
     ? `${siteUrl || ''}/r2-sample/test-image.jpg`.replace(/\/\//g, '/').replace(':/', '://')
-    : undefined
+    : `https://via.placeholder.com/300x200?text=R2+${r2Status}`
 
   const response: HealthResponse = {
     status,
@@ -59,15 +61,16 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     env: envName,
     checks: {
       d1Ms: d1Result.ms,
-      r2Ms: r2Result.ms,
+      r2Ms: hasR2Binding ? r2Result.ms : 0,
     },
-    sampleImageUrl: sampleImageUrl || `https://via.placeholder.com/300x200?text=R2+${r2Status}`,
+    sampleImageUrl,
+    ...(hasR2Binding ? {} : { r2Note: 'R2 not configured — skipped for Slice 0 (enable R2 in dashboard to use)' }),
   }
 
   if (!d1Result.ok) {
     response.dbError = d1Result.error
   }
-  if (!r2Result.ok) {
+  if (hasR2Binding && !r2Result.ok) {
     response.r2Error = r2Result.error
   }
 

@@ -110,7 +110,7 @@ describe('GET /api/health', () => {
     expect(json.r2Error).toBeDefined()
   })
 
-  it('should handle missing bindings gracefully', async () => {
+  it('should handle missing bindings gracefully - DB missing is error', async () => {
     const { onRequestGet } = await import('./health')
     const env = {
       // No DB, no R2_BUCKET
@@ -123,6 +123,27 @@ describe('GET /api/health', () => {
     expect(response.status).toBe(500)
     const json = await response.json() as any
     expect(json.status).toBe('error')
+    expect(json.db).toBe('error')
+    expect(json.r2).toBe('skipped')
+  })
+
+  it('should return r2:skipped when R2 binding missing but D1 ok (Slice 0 without R2)', async () => {
+    const { onRequestGet } = await import('./health')
+    const env = {
+      DB: mockD1,
+      // No R2_BUCKET
+      ENVIRONMENT: 'test',
+    } as any
+
+    const request = new Request('http://localhost:8788/api/health')
+    const response = await onRequestGet({ request, env, params: {}, waitUntil: () => {}, next: async () => new Response(''), data: {} } as any)
+
+    expect(response.status).toBe(200)
+    const json = await response.json() as any
+    expect(json.status).toBe('ok')
+    expect(json.db).toBe('ok')
+    expect(json.r2).toBe('skipped')
+    expect(json.r2Note).toBeDefined()
   })
 
   it('should include timing and ENVIRONMENT var', async () => {

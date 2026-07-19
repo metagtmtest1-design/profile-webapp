@@ -37,7 +37,7 @@ export function HealthBadge({ health, loading, error }: HealthBadgeProps) {
         <span className={`px-2 py-1 rounded text-sm font-mono ${health.db === 'ok' ? 'bg-green-200' : 'bg-red-200'}`}>
           DB: {health.db}
         </span>
-        <span className={`px-2 py-1 rounded text-sm font-mono ${health.r2 === 'ok' ? 'bg-green-200' : 'bg-red-200'}`}>
+        <span className={`px-2 py-1 rounded text-sm font-mono ${health.r2 === 'ok' || (health.r2 as any) === 'skipped' ? 'bg-green-200' : 'bg-red-200'}`}>
           R2: {health.r2}
         </span>
         <span className="px-2 py-1 rounded text-sm font-mono bg-gray-200">

@@ -1,7 +1,7 @@
 export interface HealthResponse {
   status: 'ok' | 'error' | 'degraded'
   db: 'ok' | 'error'
-  r2: 'ok' | 'error'
+  r2: 'ok' | 'error' | 'skipped'
   timestamp: string
   env: string
   checks?: {
@@ -11,6 +11,7 @@ export interface HealthResponse {
   dbError?: string
   r2Error?: string
   sampleImageUrl?: string
+  r2Note?: string
 }
 
 export class ApiError extends Error {
