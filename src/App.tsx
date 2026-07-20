@@ -38,11 +38,23 @@ function App() {
 
       <main className="max-w-5xl mx-auto px-6 py-10">
         <section className="mb-10">
+          {health?.env === 'alpha' && (
+            <div style={{ background: '#ff6b00', color: 'white', padding: '20px', border: '5px solid black', textAlign: 'center', marginBottom: '20px' }}>
+              <h1 style={{ fontWeight: 900, fontSize: '2.5em', textTransform: 'uppercase' }}>🚀 BOLD ALPHA ENV — {health.env.toUpperCase()} ✅</h1>
+              <p style={{ fontWeight: 'bold', fontSize: '1.2em' }}>This is ALPHA only — Prod will NOT show this bold banner. Isolation test!</p>
+              <p>Deployed at: {new Date().toLocaleString()}</p>
+            </div>
+          )}
+          {health?.env === 'production' && (
+            <div style={{ background: '#e0ffe0', color: '#333', padding: '10px', border: '2px solid green', textAlign: 'center', marginBottom: '20px' }}>
+              <strong>Production Env — Clean, No Bold Banner</strong> — This proves prod is separate from alpha
+            </div>
+          )}
           <h1 className="text-3xl font-bold mb-2">Portfolio Site — Slice 0: Infra Connectivity Proof</h1>
           <p className="text-gray-600 mb-4">
             This slice verifies GitHub → Cloudflare Pages → Functions → D1 → R2 are wired together.
             <br />
-            Expected: DB ok + R2 ok, with timing & environment.
+            Expected: DB ok + R2 {health?.r2 === 'skipped' ? 'skipped (no billing)' : 'ok'}, env bold for alpha: <strong>{health?.env}</strong>
           </p>
 
           <div className="mb-6">

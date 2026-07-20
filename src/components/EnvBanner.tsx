@@ -29,9 +29,11 @@ export function EnvBanner({ env }: EnvBannerProps) {
     detail = 'Local development'
   }
 
+  // Visual bold for alpha verification (prod will stay old until merged)
+  const isBoldVisual = isAlpha
   return (
-    <div className={`${bg} text-white text-center py-2 px-4 text-sm font-mono`}>
-      <span className="font-bold">{label}</span> — {detail} — env: {env}
+    <div className={`${bg} text-white text-center py-3 px-4 text-sm font-mono ${isBoldVisual ? 'font-black text-lg border-4 border-black' : ''}`}>
+      <span className="font-bold" style={isBoldVisual ? { fontWeight: 900, fontSize: '1.5em', textTransform: 'uppercase' } : {}}>{label} — BOLD ALPHA MODE</span> — {detail} — env: <strong style={{ fontWeight: 900 }}>{env}</strong> — {isBoldVisual ? '✅ Alpha deploy working!' : ''}
     </div>
   )
 }
