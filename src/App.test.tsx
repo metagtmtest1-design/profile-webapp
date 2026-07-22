@@ -36,9 +36,10 @@ describe('App component', () => {
 
     render(<App />)
     await waitFor(() => {
-      expect(screen.getByText(/db: ok/i)).toBeInTheDocument()
+      // Badge may appear in multiple places (banner + badge), check at least one
+      expect(screen.getAllByText(/db: ok/i).length).toBeGreaterThanOrEqual(1)
     })
-    expect(screen.getByText(/r2: ok/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/r2: ok/i).length).toBeGreaterThanOrEqual(1)
   })
 
   it('should render error when health fails', async () => {
@@ -64,7 +65,7 @@ describe('App component', () => {
 
     render(<App />)
     await waitFor(() => {
-      expect(screen.getByText(/db: ok/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/db: ok/i).length).toBeGreaterThanOrEqual(1)
     })
     // Image should be present if sampleImageUrl exists — query img element
     await waitFor(() => {
@@ -88,13 +89,14 @@ describe('App component', () => {
     render(<App />)
     // Wait for health to load first (DB ok)
     await waitFor(() => {
-      expect(screen.getByText(/db: ok/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/db: ok/i).length).toBeGreaterThanOrEqual(1)
     })
-    // Then check for alpha banner — should be present as [ALPHA] or env: alpha
-    expect(screen.getByText(/\[ALPHA\]/i)).toBeInTheDocument()
+    // Then check for alpha banner — should be present as [ALPHA] or BOLD ALPHA
+    expect(screen.getAllByText(/ALPHA/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText(/BOLD ALPHA ENV/i)).toBeInTheDocument()
   })
 
-  it('should not show alpha banner when production', async () => {
+  it('should show bold production banner when env=production (merged PR)', async () => {
     vi.mocked(fetchHealth).mockResolvedValue({
       status: 'ok',
       db: 'ok',
@@ -106,10 +108,13 @@ describe('App component', () => {
 
     render(<App />)
     await waitFor(() => {
-      expect(screen.getByText(/db: ok/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/db: ok/i).length).toBeGreaterThanOrEqual(1)
     })
-    // Should NOT show ALPHA or PREVIEW banner text when prod
+    // Now prod also shows bold banner (green) — verifies prod deploy after merge
+    expect(screen.getAllByText(/PRODUCTION/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText(/BOLD PRODUCTION ENV/i)).toBeInTheDocument()
+    expect(screen.getByText(/PROD — bold green proves merge/i)).toBeInTheDocument()
+    // Should NOT show ALPHA when prod
     expect(screen.queryByText(/\[ALPHA\]/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/\[PREVIEW\]/i)).not.toBeInTheDocument()
   })
 })

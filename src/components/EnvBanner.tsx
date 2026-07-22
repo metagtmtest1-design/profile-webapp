@@ -10,17 +10,16 @@ export function EnvBanner({ env }: EnvBannerProps) {
   const isAlpha = normalized === 'alpha'
   const isPreview = normalized === 'preview'
 
-  if (isProd) {
-    return null
-  }
-
   let bg = 'bg-yellow-500'
   let label = `[${env.toUpperCase()}]`
   let detail = 'Testing environment'
 
   if (isAlpha) {
     bg = 'bg-orange-500'
-    detail = 'Alpha testing — not production'
+    detail = 'Alpha — BOLD ORANGE ✅'
+  } else if (isProd) {
+    bg = 'bg-green-600'
+    detail = 'PROD — BOLD GREEN ✅ merged from alpha!'
   } else if (isPreview) {
     bg = 'bg-blue-500'
     detail = 'Preview deployment — testing'
@@ -29,11 +28,12 @@ export function EnvBanner({ env }: EnvBannerProps) {
     detail = 'Local development'
   }
 
-  // Visual bold for alpha verification (prod will stay old until merged)
-  const isBoldVisual = isAlpha
+  // Both alpha and prod bold now to verify prod deploy
   return (
-    <div className={`${bg} text-white text-center py-3 px-4 text-sm font-mono ${isBoldVisual ? 'font-black text-lg border-4 border-black' : ''}`}>
-      <span className="font-bold" style={isBoldVisual ? { fontWeight: 900, fontSize: '1.5em', textTransform: 'uppercase' } : {}}>{label} — BOLD ALPHA MODE</span> — {detail} — env: <strong style={{ fontWeight: 900 }}>{env}</strong> — {isBoldVisual ? '✅ Alpha deploy working!' : ''}
+    <div className={`${bg} text-white text-center py-3 px-4 text-sm font-mono font-black text-lg border-4 border-black`}>
+      <span className="font-bold" style={{ fontWeight: 900, fontSize: '1.5em', textTransform: 'uppercase' }}>
+        {label} — BOLD {env.toUpperCase()} MODE — {detail}
+      </span> — env: <strong style={{ fontWeight: 900 }}>{env}</strong> — ✅ Deploy working!
     </div>
   )
 }
