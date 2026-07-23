@@ -107,3 +107,30 @@ export async function fetchContent(slug: string, options: FetchOptions = {}): Pr
   const { json } = await fetchJson(`/api/content/${safeSlug}`, options)
   return json as ContentResponse
 }
+
+export interface CalendarSlot {
+  date: string // YYYY-MM-DD
+  start: string // ISO
+  end: string // ISO
+  available: boolean
+}
+
+export interface SlotsResponse {
+  slots: CalendarSlot[]
+  weeks: number
+  source: 'stub' | 'live' | string
+  workingHours?: any
+  calendars?: any
+  error?: string
+}
+
+export async function fetchCalendarSlots(weeks: number = 2, options: FetchOptions = {}): Promise<CalendarSlot[]> {
+  const { json } = await fetchJson(`/api/calendar/slots?weeks=${weeks}`, options)
+  const data = json as SlotsResponse
+  return data.slots as CalendarSlot[]
+}
+
+export async function fetchSlotsFull(weeks: number = 2, options: FetchOptions = {}): Promise<SlotsResponse> {
+  const { json } = await fetchJson(`/api/calendar/slots?weeks=${weeks}`, options)
+  return json as SlotsResponse
+}
