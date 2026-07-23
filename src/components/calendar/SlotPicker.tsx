@@ -8,13 +8,19 @@ export interface SlotPickerProps {
   slotMinutes?: number
 }
 
-function formatSlotTime12h(iso: string): string {
+function formatSlotTime(iso: string): string {
   try {
     const d = new Date(iso)
-    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })
+    // 12h without leading zero, e.g. 9:00 — strip AM/PM for interval display like 9:00 - 9:30 per user request
+    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })
+    return time.replace(/\s?[AP]M/i, '').trim()
   } catch {
     return iso
   }
+}
+
+function formatSlotInterval(start: string, end: string): string {
+  return `${formatSlotTime(start)} - ${formatSlotTime(end)}`
 }
 
 function formatDateLong(dateStr: string): string {
@@ -73,7 +79,7 @@ export function SlotPicker({ date, slots, onSlotSelect, slotMinutes = 30 }: Slot
                     onClick={() => onSlotSelect(slot)}
                     className="px-4 py-3 rounded-full border bg-white text-slate-900 text-sm font-medium hover:bg-slate-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-900 transition-colors leading-none"
                   >
-                    {formatSlotTime12h(slot.start)}
+                    {formatSlotInterval(slot.start, slot.end)}
                   </button>
                 ))}
               </div>
@@ -89,7 +95,7 @@ export function SlotPicker({ date, slots, onSlotSelect, slotMinutes = 30 }: Slot
                     onClick={() => onSlotSelect(slot)}
                     className="px-4 py-3 rounded-full border bg-white text-slate-900 text-sm font-medium hover:bg-slate-900 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-900 transition-colors leading-none"
                   >
-                    {formatSlotTime12h(slot.start)}
+                    {formatSlotInterval(slot.start, slot.end)}
                   </button>
                 ))}
               </div>

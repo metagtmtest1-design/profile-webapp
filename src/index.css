@@ -169,6 +169,7 @@ body {
 .grid { display: grid; }
 .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
 .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .list-disc { list-style: disc; }
 .text-center { text-align: center; }
 .text-xs { font-size: 0.75rem; letter-spacing: 0.02em; }
@@ -233,6 +234,7 @@ body {
 @media (min-width: 1024px) {
   .lg\:flex-row { flex-direction: row; }
   .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lg\:grid-cols-7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
   .lg\:gap-8 { gap: 2rem; }
   .lg\:gap-16 { gap: 4rem; }
   .lg\:py-24 { padding-top: 6rem; padding-bottom: 6rem; }

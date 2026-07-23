@@ -38,17 +38,17 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
   const days = getNext14Days(excludeToday)
 
   return (
-    <div className="card rounded-2xl p-6 md:p-8 bg-white shadow-sm max-w-5xl w-full">
+    <div className="card rounded-2xl p-6 md:p-8 bg-white shadow-sm w-full">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div>
           <h3 className="text-xl font-black tracking-tight" style={{ fontFamily: 'Playfair Display, serif' }}>
             Your availability
           </h3>
           <p className="text-xs text-gray-500 mt-1">
-            Next 14 days • {excludeToday ? 'Not scheduling today — from tomorrow' : 'From today'} • {slotMinutes} min slots
+            Next 14 days • {excludeToday ? 'From tomorrow (today excluded)' : 'From today'} • {slotMinutes} min slots
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <span className="px-3 py-1 bg-slate-50 border rounded-full text-xs">
             {slotMinutes} min
           </span>
@@ -60,8 +60,8 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
         </div>
       </div>
 
-      {/* 14-day strip — mobile horizontal scroll, desktop grid */}
-      <div className="flex gap-3 overflow-x-auto pb-3 -mx-2 px-2 lg:grid lg:grid-cols-7 lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
+      {/* 14-day calendar — 2 rows, 7 days per row (per user request), from today → 2 weeks */}
+      <div className="grid grid-cols-7 gap-2 sm:gap-3">
         {days.map((d) => {
           const { dow, day, month, dateStr, isToday } = formatDayShort(d)
           const daySlots = grouped[dateStr] || []
@@ -77,30 +77,30 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
               onClick={() => !isDisabled && onDateSelect(dateStr)}
               disabled={isDisabled}
               aria-selected={isSelected}
-              className={`min-w-[76px] md:min-w-0 flex flex-col items-center py-4 px-3 rounded-2xl border transition-all flex-none
+              className={`flex flex-col items-center justify-start py-3 sm:py-4 px-1 sm:px-2 rounded-2xl border transition-all min-h-[88px] sm:min-h-[92px]
                 ${isWeekend ? 'bg-gray-50 text-gray-400 border-gray-100' : ''}
                 ${!isWeekend && !hasAvailability ? 'bg-gray-50 text-gray-400 border-gray-100' : ''}
                 ${hasAvailability && !isSelected ? 'bg-white border-slate-200 hover:border-slate-900 hover:shadow-md' : ''}
                 ${isSelected ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]' : ''}
                 ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
             >
-              <div className={`text-[11px] uppercase tracking-widest ${isSelected ? 'text-slate-300' : 'text-gray-400'}`}>
+              <div className={`text-[10px] sm:text-[11px] uppercase tracking-widest ${isSelected ? 'text-slate-300' : 'text-gray-400'}`}>
                 {dow}
               </div>
-              <div className="text-[22px] font-bold leading-none mt-1">{day}</div>
-              <div className={`text-[11px] mt-1 ${isSelected ? 'text-slate-300' : 'text-gray-500'}`}>{month}</div>
-              {isToday && !excludeToday && (
-                <div className={`mt-1 text-[10px] px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}`}>Today</div>
-              )}
-              {hasAvailability ? (
-                <div className="mt-2">
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}`}>
+              <div className="text-[18px] sm:text-[22px] font-bold leading-none mt-1">{day}</div>
+              <div className={`text-[10px] sm:text-[11px] mt-1 ${isSelected ? 'text-slate-300' : 'text-gray-500'}`}>{month}</div>
+              {isToday && !excludeToday ? (
+                <div className={`mt-1 text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}`}>Today</div>
+              ) : null}
+              <div className="mt-2">
+                {hasAvailability ? (
+                  <span className={`inline-block px-2 py-1 rounded-full text-[10px] sm:text-[11px] leading-none ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}`}>
                     {availableCount} slots
                   </span>
-                </div>
-              ) : (
-                <div className="mt-2 text-[11px] text-gray-400">{isWeekend ? 'Weekend' : 'Full'}</div>
-              )}
+                ) : (
+                  <span className="text-[10px] sm:text-[11px] text-gray-400">{isWeekend ? 'Weekend' : 'Full'}</span>
+                )}
+              </div>
             </button>
           )
         })}
@@ -108,13 +108,9 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
 
       {excludeToday && (
         <div className="mt-4 text-xs text-gray-500 text-center">
-          Not taking bookings today — next availability from tomorrow. Change via <code>EXCLUDE_TODAY</code> var.
+          Not taking bookings today — next availability from tomorrow.
         </div>
       )}
-
-      <div className="mt-4 text-xs text-gray-400 text-center">
-        {Object.keys(grouped).length} days with slots • {Object.values(grouped).flat().filter((s: any) => s.available).length} free slots total • Select a date to see times
-      </div>
     </div>
   )
 }

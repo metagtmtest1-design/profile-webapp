@@ -87,24 +87,23 @@ export function Home() {
               <div className="text-xs mt-1">{calError}</div>
             </div>
           ) : (
-            <div className="flex flex-col lg:flex-row gap-8 justify-center items-start">
+            <div className="w-full">
               <CalendarView grouped={grouped} selectedDate={selectedDate} onDateSelect={setSelectedDate} excludeToday={excludeToday} slotMinutes={slotMinutes} />
-              <div className="w-full max-w-md">
+              <div className="mt-8 w-full max-w-3xl mx-auto">
                 {selectedDate ? (
                   <SlotPicker
                     date={selectedDate}
                     slots={selectedSlots}
                     onSlotSelect={(slot) => {
-                      // Slice 3 will handle booking form
-                      alert(`Selected slot: ${slot.start} → Booking form coming in Slice 3.`)
+                      // Slice 3 will handle booking
                     }}
                     slotMinutes={slotMinutes}
                   />
                 ) : (
-                  <div className="border rounded-xl p-6 bg-white text-center text-gray-500">
-                    <div className="text-sm">Select a date from next 14 days</div>
+                  <div className="text-center text-sm text-gray-500 py-4">
+                    <div>Select a date above to see available times</div>
                     <div className="text-xs mt-1">
-                      {excludeToday ? 'Excluding today • ' : ''}{slots.length} slots next 2 weeks • {Object.keys(grouped).length} days with availability
+                      {excludeToday ? 'Excluding today • ' : ''}{slots.length} slots • {Object.keys(grouped).length} days
                     </div>
                   </div>
                 )}
