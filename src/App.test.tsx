@@ -2,29 +2,30 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import App from './App'
 
-// Mock lib/api
 vi.mock('./lib/api', () => ({
-  fetchHealth: vi.fn(),
+  fetchHealth: vi.fn().mockResolvedValue({
+    status: 'ok',
+    db: 'ok',
+    r2: 'ok',
+    timestamp: new Date().toISOString(),
+    env: 'test',
+    checks: { d1Ms: 2, r2Ms: 3 },
+  }),
+  fetchContent: vi.fn().mockResolvedValue({
+    page: { id: 'p1', slug: 'home', title: 'Portfolio', meta_description: 'Desc', sort_order: 0, is_published: 1 },
+    sections: [],
+  }),
 }))
 
-import { fetchHealth } from './lib/api'
+import { fetchContent, fetchHealth } from './lib/api'
 
-describe('App component', () => {
+describe('App component - clean UI (no debug banners)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  it('should render loading state initially', () => {
-    vi.mocked(fetchHealth).mockReturnValue(new Promise(() => {})) // never resolves
-    render(<App />)
-    expect(screen.getByText(/checking/i)).toBeInTheDocument()
-  })
-
-  it('should render health ok badge after fetch', async () => {
+    vi.mocked(fetchContent).mockResolvedValue({
+      page: { id: 'p1', slug: 'home', title: 'Portfolio', meta_description: 'Desc', sort_order: 0, is_published: 1 },
+      sections: [],
+    } as any)
     vi.mocked(fetchHealth).mockResolvedValue({
       status: 'ok',
       db: 'ok',
@@ -33,49 +34,48 @@ describe('App component', () => {
       env: 'test',
       checks: { d1Ms: 2, r2Ms: 3 },
     } as any)
-
-    render(<App />)
-    await waitFor(() => {
-      // Badge may appear in multiple places (banner + badge), check at least one
-      expect(screen.getAllByText(/db: ok/i).length).toBeGreaterThanOrEqual(1)
+    // Ensure pathname is root for main tests
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/' },
+      writable: true,
     })
-    expect(screen.getAllByText(/r2: ok/i).length).toBeGreaterThanOrEqual(1)
   })
 
-  it('should render error when health fails', async () => {
-    vi.mocked(fetchHealth).mockRejectedValue(new Error('D1 connection failed'))
+  afterEach(() => vi.restoreAllMocks())
 
-    render(<App />)
-    await waitFor(() => {
-      expect(screen.getByText(/error/i)).toBeInTheDocument()
-    })
-    expect(screen.getByText(/D1 connection failed/)).toBeInTheDocument()
-  })
-
-  it('should render R2 sample image when url provided', async () => {
-    vi.mocked(fetchHealth).mockResolvedValue({
-      status: 'ok',
-      db: 'ok',
-      r2: 'ok',
-      timestamp: new Date().toISOString(),
-      env: 'test',
-      checks: { d1Ms: 2, r2Ms: 3 },
-      sampleImageUrl: 'https://example.com/r2/test.jpg',
+  it('should render portfolio content from D1 (Home) without debug banners', async () => {
+    vi.mocked(fetchContent).mockResolvedValue({
+      page: { id: 'p1', slug: 'home', title: 'My Portfolio', sort_order: 0, is_published: 1 },
+      sections: [
+        { id: 'sec1', page_id: 'p1', type: 'hero', heading: 'Welcome Home', sort_order: 0, is_visible: 1, config: {}, items: [{ id: 'i1', title: 'Hero Title', sort_order: 0, is_visible: 1 }] } as any,
+      ],
     } as any)
 
     render(<App />)
-    await waitFor(() => {
-      expect(screen.getAllByText(/db: ok/i).length).toBeGreaterThanOrEqual(1)
-    })
-    // Image should be present if sampleImageUrl exists — query img element
-    await waitFor(() => {
-      const img = document.querySelector('img') as HTMLImageElement
-      expect(img).toBeTruthy()
-      expect(img.src).toContain('example.com')
-    })
+    await waitFor(() => expect(screen.getByText(/Welcome Home/)).toBeInTheDocument())
+    // Should NOT show BOLD ENV debug banner on main page (moved to /health)
+    expect(screen.queryByText(/BOLD .* ENV/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/DB: ok/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/R2: ok/i)).not.toBeInTheDocument()
   })
 
-  it('should show ENVIRONMENT banner when not production', async () => {
+  it('should render loading state for content', () => {
+    vi.mocked(fetchContent).mockReturnValue(new Promise(() => {}) as any)
+    render(<App />)
+    expect(screen.getByText(/loading portfolio/i)).toBeInTheDocument()
+  })
+
+  it('should handle content empty gracefully', async () => {
+    render(<App />)
+    await waitFor(() => screen.getByText(/content is being prepared/i))
+    expect(screen.getByText(/check back soon/i)).toBeInTheDocument()
+  })
+
+  it('should render health debug page at /health route (env in /health, not main)', async () => {
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/health' },
+      writable: true,
+    })
     vi.mocked(fetchHealth).mockResolvedValue({
       status: 'ok',
       db: 'ok',
@@ -87,34 +87,16 @@ describe('App component', () => {
     } as any)
 
     render(<App />)
-    // Wait for health to load first (DB ok)
-    await waitFor(() => {
-      expect(screen.getAllByText(/db: ok/i).length).toBeGreaterThanOrEqual(1)
-    })
-    // Then check for alpha banner — should be present as [ALPHA] or BOLD ALPHA
-    expect(screen.getAllByText(/ALPHA/i).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText(/BOLD ALPHA ENV/i)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText(/System Health — Debug/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText(/DB: ok/i).length).toBeGreaterThanOrEqual(1))
+    expect(screen.getAllByText(/R2: ok/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/alpha/i).length).toBeGreaterThanOrEqual(1)
   })
 
-  it('should show bold production banner when env=production (merged PR)', async () => {
-    vi.mocked(fetchHealth).mockResolvedValue({
-      status: 'ok',
-      db: 'ok',
-      r2: 'ok',
-      timestamp: new Date().toISOString(),
-      env: 'production',
-      checks: { d1Ms: 2, r2Ms: 3 },
-    } as any)
-
+  it('should not show infra health details on main portfolio page', async () => {
     render(<App />)
-    await waitFor(() => {
-      expect(screen.getAllByText(/db: ok/i).length).toBeGreaterThanOrEqual(1)
-    })
-    // Now prod also shows bold banner (green) — verifies prod deploy after merge
-    expect(screen.getAllByText(/PRODUCTION/i).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText(/BOLD PRODUCTION ENV/i)).toBeInTheDocument()
-    expect(screen.getByText(/PROD — bold green proves merge/i)).toBeInTheDocument()
-    // Should NOT show ALPHA when prod
-    expect(screen.queryByText(/\[ALPHA\]/i)).not.toBeInTheDocument()
+    await waitFor(() => screen.getByText(/content is being prepared/i))
+    expect(screen.queryByText(/Infra health/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/D1\+R2/i)).not.toBeInTheDocument()
   })
 })

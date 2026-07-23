@@ -12,7 +12,7 @@ export interface Env {
 interface HealthResponse {
   status: 'ok' | 'error' | 'degraded'
   db: 'ok' | 'error'
-  r2: 'ok' | 'error' | 'skipped'
+  r2: 'ok' | 'error'
   timestamp: string
   env: string
   checks: {
@@ -22,30 +22,22 @@ interface HealthResponse {
   dbError?: string
   r2Error?: string
   sampleImageUrl?: string
-  r2Note?: string
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   const timestamp = new Date().toISOString()
   const envName = getEnvironment(env as EnvVars)
   const siteUrl = (env as any)?.SITE_URL || ''
-  const hasR2Binding = !!env?.R2_BUCKET
 
-  // Run checks in parallel but with independent error handling
-  const [d1Result, r2Result] = await Promise.all([
-    checkD1(env?.DB),
-    hasR2Binding ? checkR2(env?.R2_BUCKET) : Promise.resolve({ ok: true, ms: 0, skipped: true } as any),
-  ])
+  // Both D1 and R2 required for all envs (alpha = alpha D1+R2, prod = prod D1+R2)
+  // R2 now enabled — must be checked for both preview (alpha) and production (prod)
+  const [d1Result, r2Result] = await Promise.all([checkD1(env?.DB), checkR2(env?.R2_BUCKET)])
 
   const dbStatus = d1Result.ok ? 'ok' : 'error'
-  // If no R2 binding, treat as skipped (ok for Slice 0 without R2 enabled)
-  const r2Status = !hasR2Binding ? 'skipped' : r2Result.ok ? 'ok' : 'error'
+  const r2Status = r2Result.ok ? 'ok' : 'error'
 
   let status: HealthResponse['status'] = 'ok'
-  // D1 must be ok. R2 is optional for Slice 0 when no binding (skipped), but if binding exists and fails, it's error
-  if (!d1Result.ok) {
-    status = 'error'
-  } else if (hasR2Binding && !r2Result.ok) {
+  if (!d1Result.ok || !r2Result.ok) {
     status = 'error'
   }
 
@@ -61,18 +53,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     env: envName,
     checks: {
       d1Ms: d1Result.ms,
-      r2Ms: hasR2Binding ? r2Result.ms : 0,
+      r2Ms: r2Result.ms,
     },
     sampleImageUrl,
-    ...(hasR2Binding ? {} : { r2Note: 'R2 not configured — skipped for Slice 0 (enable R2 in dashboard to use)' }),
   }
 
-  if (!d1Result.ok) {
-    response.dbError = d1Result.error
-  }
-  if (hasR2Binding && !r2Result.ok) {
-    response.r2Error = r2Result.error
-  }
+  if (!d1Result.ok) response.dbError = d1Result.error
+  if (!r2Result.ok) response.r2Error = r2Result.error
 
   const httpStatus = status === 'ok' ? 200 : 500
 
