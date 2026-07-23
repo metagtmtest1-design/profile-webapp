@@ -21,11 +21,10 @@ binding = "DB"
 database_name = "portfolio-db"
 database_id = "f6dfc0c2-a7db-4e4a-b2de-abc5926fbf8b"
 
-# R2 disabled for Slice 0 without billing - health returns r2:skipped
-# Uncomment when R2 enabled via Dashboard → R2 → Enable
-# [[r2_buckets]]
-# binding = "R2_BUCKET"
-# bucket_name = "portfolio-images"
+# R2 now enabled — active for Slice 0+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "portfolio-images"
 
 # Preview env: used for all preview branches including alpha and PRs
 # For Slice 0, preview uses alpha DB so alpha.somewebsite.com gets alpha data (isolated from prod)
@@ -36,9 +35,9 @@ binding = "DB"
 database_name = "portfolio-db-alpha"
 database_id = "30b1ea40-63cd-41ef-84d5-2d9007bea311"
 
-# [[env.preview.r2_buckets]]
-# binding = "R2_BUCKET"
-# bucket_name = "portfolio-images-preview"
+[[env.preview.r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "portfolio-images-alpha"
 
 [env.preview.vars]
 ENVIRONMENT = "alpha"
@@ -58,9 +57,9 @@ binding = "DB"
 database_name = "portfolio-db"
 database_id = "f6dfc0c2-a7db-4e4a-b2de-abc5926fbf8b"
 
-# [[env.production.r2_buckets]]
-# binding = "R2_BUCKET"
-# bucket_name = "portfolio-images"
+[[env.production.r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "portfolio-images"
 
 [env.production.vars]
 ENVIRONMENT = "production"
