@@ -110,7 +110,7 @@ describe('GET /api/health', () => {
     expect(json.r2Error).toBeDefined()
   })
 
-  it('should handle missing bindings gracefully - DB missing is error', async () => {
+  it('should handle missing bindings gracefully - DB missing is error, R2 missing is error (both envs require D1+R2)', async () => {
     const { onRequestGet } = await import('./health')
     const env = {
       // No DB, no R2_BUCKET
@@ -124,15 +124,36 @@ describe('GET /api/health', () => {
     const json = await response.json() as any
     expect(json.status).toBe('error')
     expect(json.db).toBe('error')
-    expect(json.r2).toBe('skipped')
+    expect(json.r2).toBe('error')
+    expect(json.r2Error).toBeDefined()
   })
 
-  it('should return r2:skipped when R2 binding missing but D1 ok (Slice 0 without R2)', async () => {
+  it('should return r2:error when R2 binding missing but D1 ok (R2 now required for both alpha and prod)', async () => {
     const { onRequestGet } = await import('./health')
     const env = {
       DB: mockD1,
-      // No R2_BUCKET
+      // No R2_BUCKET — should be error now that R2 enabled
       ENVIRONMENT: 'test',
+    } as any
+
+    const request = new Request('http://localhost:8788/api/health')
+    const response = await onRequestGet({ request, env, params: {}, waitUntil: () => {}, next: async () => new Response(''), data: {} } as any)
+
+    expect(response.status).toBe(500)
+    const json = await response.json() as any
+    expect(json.status).toBe('error')
+    expect(json.db).toBe('ok')
+    expect(json.r2).toBe('error')
+    expect(json.r2Error).toBeDefined()
+  })
+
+  it('should return db:ok r2:ok for alpha env (preview) with alpha D1+R2 bindings', async () => {
+    const { onRequestGet } = await import('./health')
+    const env = {
+      DB: mockD1,
+      R2_BUCKET: mockR2,
+      ENVIRONMENT: 'alpha',
+      SITE_URL: 'https://alpha.profile-webapp.pages.dev',
     } as any
 
     const request = new Request('http://localhost:8788/api/health')
@@ -140,10 +161,28 @@ describe('GET /api/health', () => {
 
     expect(response.status).toBe(200)
     const json = await response.json() as any
-    expect(json.status).toBe('ok')
     expect(json.db).toBe('ok')
-    expect(json.r2).toBe('skipped')
-    expect(json.r2Note).toBeDefined()
+    expect(json.r2).toBe('ok')
+    expect(json.env).toBe('alpha')
+  })
+
+  it('should return db:ok r2:ok for production env with prod D1+R2 bindings', async () => {
+    const { onRequestGet } = await import('./health')
+    const env = {
+      DB: mockD1,
+      R2_BUCKET: mockR2,
+      ENVIRONMENT: 'production',
+      SITE_URL: 'https://profile-webapp.pages.dev',
+    } as any
+
+    const request = new Request('http://localhost:8788/api/health')
+    const response = await onRequestGet({ request, env, params: {}, waitUntil: () => {}, next: async () => new Response(''), data: {} } as any)
+
+    expect(response.status).toBe(200)
+    const json = await response.json() as any
+    expect(json.db).toBe('ok')
+    expect(json.r2).toBe('ok')
+    expect(json.env).toBe('production')
   })
 
   it('should include timing and ENVIRONMENT var', async () => {
