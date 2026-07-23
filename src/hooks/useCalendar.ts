@@ -1,11 +1,13 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { fetchCalendarSlots, type CalendarSlot, type FetchOptions } from '../lib/api'
+import { fetchSlotsFull, type CalendarSlot, type FetchOptions } from '../lib/api'
 
 export interface UseCalendarReturn {
   slots: CalendarSlot[]
   grouped: Record<string, CalendarSlot[]>
   loading: boolean
   error: string | null
+  slotMinutes: number
+  excludeToday: boolean
   refetch: () => Promise<void>
 }
 
@@ -13,13 +15,22 @@ export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalen
   const [slots, setSlots] = useState<CalendarSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [slotMinutes, setSlotMinutes] = useState(30)
+  const [excludeToday, setExcludeToday] = useState(false)
 
   const fetch = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const result = await fetchCalendarSlots(weeks, options)
-      setSlots(result)
+      const full = await fetchSlotsFull(weeks, options)
+      setSlots(full.slots)
+      // Configurable slot duration multiple of 15 per requirement, from API workingHours
+      if (full.workingHours?.slotMinutes) {
+        setSlotMinutes(full.workingHours.slotMinutes)
+      }
+      if (full.workingHours?.excludeToday !== undefined) {
+        setExcludeToday(!!full.workingHours.excludeToday)
+      }
     } catch (e: any) {
       setError(e.message || String(e))
       setSlots([])
@@ -41,5 +52,5 @@ export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalen
     return map
   }, [slots])
 
-  return { slots, grouped, loading, error, refetch: fetch }
+  return { slots, grouped, loading, error, slotMinutes, excludeToday, refetch: fetch }
 }

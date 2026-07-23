@@ -1,4 +1,4 @@
-import { computeSlots, getFreeBusy, getStubSlots, type BusyBlock } from '../../_lib/google-calendar'
+import { computeSlots, getFreeBusy, getStubSlots, normalizeSlotMinutes, parseExcludeToday } from '../../_lib/google-calendar'
 
 export interface Env {
   BOOKING_CALENDAR_ID?: string
@@ -6,7 +6,9 @@ export interface Env {
   WORKING_HOURS_START?: string
   WORKING_HOURS_END?: string
   WORKING_DAYS?: string // "1,2,3,4,5"
-  SLOT_DURATION_MINUTES?: string // "30"
+  SLOT_DURATION_MINUTES?: string // "30" — configurable, always multiple of 15
+  EXCLUDE_TODAY?: string // "true" to not take any schedule today
+  CALENDAR_EXCLUDE_TODAY?: string // alias
   ENVIRONMENT?: string
   SITE_URL?: string
   GCAL_SERVICE_ACCOUNT_KEY?: string
@@ -35,36 +37,39 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       }
     }
 
+    const excludeToday = parseExcludeToday((env as any)?.EXCLUDE_TODAY ?? (env as any)?.CALENDAR_EXCLUDE_TODAY)
+
     const workingHours = {
       start: env?.WORKING_HOURS_START || '09:00',
       end: env?.WORKING_HOURS_END || '17:00',
       days: parseWorkingDays(env?.WORKING_DAYS),
-      slotMinutes: parseInt(env?.SLOT_DURATION_MINUTES || '30', 10) || 30,
+      // Configurable, multiple of 15 per requirement
+      slotMinutes: normalizeSlotMinutes(env?.SLOT_DURATION_MINUTES || '30'),
+      excludeToday,
     }
 
     // FreeBusy — stub when no SA key or ENVIRONMENT test/local or STUB flag
     const { busyBlocks, source, error } = await getFreeBusy(env)
 
     let slots
+    const startDate = new Date()
+    startDate.setUTCHours(0, 0, 0, 0)
     if (source === 'stub' && busyBlocks.length === 0) {
-      // For stub with no busy, generate full slots via getStubSlots
-      slots = getStubSlots(weeks)
-      // Filter by workingHours (stub uses same, but ensure)
-      // Filter past slots for today
+      // For stub with no busy, generate full slots via getStubSlots with workingHours and excludeToday
+      slots = getStubSlots(weeks, excludeToday)
+      // Override slot duration if custom (stub uses 30 default, but recompute with our workingHours)
+      const { computeSlots } = await import('../../_lib/google-calendar')
+      slots = computeSlots({ startDate, weeks, workingHours, busyBlocks: [], excludeToday })
       const now = new Date()
       slots = slots.filter((s: any) => new Date(s.end) > now)
-      // Filter by working days already done in getStubSlots
-      // No event details (privacy) — stub already has no titles
     } else {
-      const startDate = new Date()
-      startDate.setUTCHours(0, 0, 0, 0)
-      slots = (await import('../../_lib/google-calendar')).computeSlots({
+      slots = computeSlots({
         startDate,
         weeks,
         workingHours,
         busyBlocks,
+        excludeToday,
       })
-      // Filter past
       const now = new Date()
       slots = slots.filter((s: any) => new Date(s.end) > now)
     }

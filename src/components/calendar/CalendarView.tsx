@@ -1,81 +1,119 @@
-import React, { useState, useMemo } from 'react'
+import React from 'react'
 import type { CalendarSlot } from '../../lib/api'
 
 export interface CalendarViewProps {
   grouped: Record<string, CalendarSlot[]>
   selectedDate: string | null
   onDateSelect: (date: string) => void
+  excludeToday?: boolean
+  slotMinutes?: number
 }
 
-function getDaysInMonth(year: number, month: number): Date[] {
-  const date = new Date(Date.UTC(year, month, 1))
+function getNext14Days(excludeToday: boolean): Date[] {
   const days: Date[] = []
-  while (date.getUTCMonth() === month) {
-    days.push(new Date(date))
-    date.setUTCDate(date.getUTCDate() + 1)
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  if (excludeToday) start.setDate(start.getDate() + 1)
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
+    days.push(d)
   }
   return days
 }
 
-export function CalendarView({ grouped, selectedDate, onDateSelect }: CalendarViewProps) {
-  const [current, setCurrent] = useState(() => new Date())
-  const year = current.getUTCFullYear()
-  const month = current.getUTCMonth()
-
-  const days = useMemo(() => getDaysInMonth(year, month), [year, month])
-
+function formatDayShort(date: Date): { dow: string; day: string; month: string; dateStr: string; isToday: boolean } {
   const todayStr = new Date().toISOString().split('T')[0]
+  const dateStr = date.toISOString().split('T')[0]
+  return {
+    dow: date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+    day: date.getDate().toString(),
+    month: date.toLocaleDateString('en-US', { month: 'short' }),
+    dateStr,
+    isToday: dateStr === todayStr,
+  }
+}
 
-  const nextMonth = () => {
-    const d = new Date(current)
-    d.setUTCMonth(month + 1)
-    setCurrent(d)
-  }
-  const prevMonth = () => {
-    const d = new Date(current)
-    d.setUTCMonth(month - 1)
-    setCurrent(d)
-  }
+export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday = false, slotMinutes = 30 }: CalendarViewProps) {
+  const days = getNext14Days(excludeToday)
 
   return (
-    <div className="border rounded-xl p-4 bg-white max-w-md">
-      <div className="flex justify-between items-center mb-4">
-        <button onClick={prevMonth} className="px-3 py-1 border rounded-lg text-sm">←</button>
-        <div className="font-bold">
-          {current.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
+    <div className="card rounded-2xl p-6 md:p-8 bg-white shadow-sm max-w-5xl w-full">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+        <div>
+          <h3 className="text-xl font-black tracking-tight" style={{ fontFamily: 'Playfair Display, serif' }}>
+            Your availability
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">
+            Next 14 days • {excludeToday ? 'Not scheduling today — from tomorrow' : 'From today'} • {slotMinutes} min slots
+          </p>
         </div>
-        <button onClick={nextMonth} className="px-3 py-1 border rounded-lg text-sm">→</button>
+        <div className="flex gap-2">
+          <span className="px-3 py-1 bg-slate-50 border rounded-full text-xs">
+            {slotMinutes} min
+          </span>
+          {excludeToday && (
+            <span className="px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700">
+              Excluding today
+            </span>
+          )}
+        </div>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-xs text-center text-gray-500 mb-2">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
-          <div key={d + Math.random()}>{d}</div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-1">
+
+      {/* 14-day strip — mobile horizontal scroll, desktop grid */}
+      <div className="flex gap-3 overflow-x-auto pb-3 -mx-2 px-2 lg:grid lg:grid-cols-7 lg:overflow-visible" style={{ scrollbarWidth: 'none' }}>
         {days.map((d) => {
-          const dateStr = d.toISOString().split('T')[0]
-          const hasSlots = grouped[dateStr] && grouped[dateStr].some((s) => s.available)
-          const isPast = dateStr < todayStr
+          const { dow, day, month, dateStr, isToday } = formatDayShort(d)
+          const daySlots = grouped[dateStr] || []
+          const availableCount = daySlots.filter((s) => s.available).length
+          const hasAvailability = availableCount > 0
           const isSelected = selectedDate === dateStr
+          const isWeekend = [0, 6].includes(d.getDay())
+          const isDisabled = !hasAvailability || isWeekend
+
           return (
             <button
               key={dateStr}
-              onClick={() => !isPast && onDateSelect(dateStr)}
-              disabled={isPast}
+              onClick={() => !isDisabled && onDateSelect(dateStr)}
+              disabled={isDisabled}
               aria-selected={isSelected}
-              className={`h-9 rounded-lg text-sm border flex items-center justify-center
-                ${isPast ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed' : ''}
-                ${!isPast && !hasSlots ? 'bg-white text-gray-600 border-gray-200' : ''}
-                ${hasSlots ? 'bg-slate-900 text-white border-slate-900' : ''}
-                ${isSelected ? 'selected ring-2 ring-black ring-offset-1 font-bold' : ''}`}
+              className={`min-w-[76px] md:min-w-0 flex flex-col items-center py-4 px-3 rounded-2xl border transition-all flex-none
+                ${isWeekend ? 'bg-gray-50 text-gray-400 border-gray-100' : ''}
+                ${!isWeekend && !hasAvailability ? 'bg-gray-50 text-gray-400 border-gray-100' : ''}
+                ${hasAvailability && !isSelected ? 'bg-white border-slate-200 hover:border-slate-900 hover:shadow-md' : ''}
+                ${isSelected ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]' : ''}
+                ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
             >
-              {d.getUTCDate()}
+              <div className={`text-[11px] uppercase tracking-widest ${isSelected ? 'text-slate-300' : 'text-gray-400'}`}>
+                {dow}
+              </div>
+              <div className="text-[22px] font-bold leading-none mt-1">{day}</div>
+              <div className={`text-[11px] mt-1 ${isSelected ? 'text-slate-300' : 'text-gray-500'}`}>{month}</div>
+              {isToday && !excludeToday && (
+                <div className={`mt-1 text-[10px] px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}`}>Today</div>
+              )}
+              {hasAvailability ? (
+                <div className="mt-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}`}>
+                    {availableCount} slots
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] text-gray-400">{isWeekend ? 'Weekend' : 'Full'}</div>
+              )}
             </button>
           )
         })}
       </div>
-      <div className="mt-3 text-xs text-gray-500 text-center">
-        {Object.keys(grouped).length} days with availability • Select a date
+
+      {excludeToday && (
+        <div className="mt-4 text-xs text-gray-500 text-center">
+          Not taking bookings today — next availability from tomorrow. Change via <code>EXCLUDE_TODAY</code> var.
+        </div>
+      )}
+
+      <div className="mt-4 text-xs text-gray-400 text-center">
+        {Object.keys(grouped).length} days with slots • {Object.values(grouped).flat().filter((s: any) => s.available).length} free slots total • Select a date to see times
       </div>
     </div>
   )

@@ -10,7 +10,8 @@ describe('SlotPicker', () => {
     ] as any
 
     render(<SlotPicker date="2026-07-20" slots={slots} onSlotSelect={vi.fn()} />)
-    expect(screen.getByText(/09:00/) || screen.getByText(/10:00/)).toBeTruthy()
+    // Now 12h format: 9:00 AM
+    expect(screen.getByText(/9:00/) || screen.getByText(/10:00/)).toBeTruthy()
   })
 
   it('should show busy slots as unavailable but no event details', () => {
@@ -36,7 +37,8 @@ describe('SlotPicker', () => {
     ] as any
 
     render(<SlotPicker date="2026-07-20" slots={slots} onSlotSelect={onSelect} />)
-    const btn = screen.getByRole('button', { name: /09:00/ })
+    // 12h format 9:00 AM
+    const btn = screen.getByRole('button', { name: /9:00/ })
     btn.click()
     expect(onSelect).toHaveBeenCalled()
   })

@@ -42,10 +42,40 @@ export function parseTime(timeStr: string | null | undefined): number {
   return h * 60 + m
 }
 
+export function normalizeSlotMinutes(raw: any): number {
+  // Configurable, always multiple of 15 per requirement
+  let mins = parseInt(String(raw ?? '30'), 10)
+  if (isNaN(mins) || mins < 15) mins = 30
+  if (mins > 120) mins = 120
+  // Round down to nearest multiple of 15 (e.g. 20 → 15, 50 → 45)
+  mins = Math.floor(mins / 15) * 15
+  if (mins < 15) mins = 15
+  return mins
+}
+
+export function parseExcludeToday(raw: any): boolean {
+  if (raw === true) return true
+  const s = String(raw ?? '').toLowerCase()
+  return s === 'true' || s === '1' || s === 'yes'
+}
+
 export function filterWorkingDays(dates: Date[] | null | undefined, workingDays: number[] | null | undefined): Date[] {
   if (!dates || !Array.isArray(dates)) return []
   if (!workingDays || !Array.isArray(workingDays)) return [...dates]
   return dates.filter((d) => workingDays.includes(d.getDay()))
+}
+
+export function getNext14Days(excludeToday: boolean = false): Date[] {
+  const days: Date[] = []
+  const start = new Date()
+  start.setUTCHours(0, 0, 0, 0)
+  if (excludeToday) start.setUTCDate(start.getUTCDate() + 1)
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(start)
+    d.setUTCDate(start.getUTCDate() + i)
+    days.push(d)
+  }
+  return days
 }
 
 function toDateString(d: Date): string {
@@ -65,7 +95,8 @@ export function computeSlotsForDay(
   workingHours: { start: string; end: string; slotMinutes?: number; slotDurationMinutes?: number },
   busyBlocks: BusyBlock[]
 ): CalendarSlot[] {
-  const slotMinutes = workingHours.slotMinutes ?? workingHours.slotDurationMinutes ?? 30
+  const rawMinutes = workingHours.slotMinutes ?? workingHours.slotDurationMinutes ?? 30
+  const slotMinutes = normalizeSlotMinutes(rawMinutes)
   const startMins = parseTime(workingHours.start)
   const endMins = parseTime(workingHours.end)
 
@@ -117,10 +148,11 @@ export function computeSlots(params: {
   weeks: number
   workingHours: WorkingHours & { days?: number[] }
   busyBlocks: BusyBlock[]
+  excludeToday?: boolean
 }): CalendarSlot[] {
-  const { startDate, weeks, workingHours, busyBlocks } = params
+  const { startDate, weeks, workingHours, busyBlocks, excludeToday = false } = params
   const days = workingHours.days ?? [1, 2, 3, 4, 5]
-  const slotMinutes = (workingHours as any).slotMinutes ?? (workingHours as any).slotDurationMinutes ?? 30
+  const slotMinutes = normalizeSlotMinutes((workingHours as any).slotMinutes ?? (workingHours as any).slotDurationMinutes ?? 30)
   const start = workingHours.start ?? '09:00'
   const end = workingHours.end ?? '17:00'
 
@@ -129,6 +161,14 @@ export function computeSlots(params: {
   for (let i = 0; i < totalDays; i++) {
     const d = new Date(startDate)
     d.setUTCDate(startDate.getUTCDate() + i)
+    // Exclude today option — requirement 2: option not taking any schedule today
+    if (excludeToday) {
+      const todayStr = new Date().toISOString().split('T')[0]
+      const dStr = new Date(d).toISOString().split('T')[0]
+      if (dStr === todayStr) continue
+      // Also if startDate is today and i=0, skip
+      if (i === 0 && toDateString(d) === toDateString(new Date())) continue
+    }
     allDates.push(d)
   }
 
@@ -137,9 +177,6 @@ export function computeSlots(params: {
   const allSlots: CalendarSlot[] = []
   for (const d of workingDates) {
     const daySlots = computeSlotsForDay(d, { start, end, slotMinutes }, busyBlocks)
-    // Filter past slots? For test that expects all available true, we don't filter past if startDate is future (2026). But for real today, filter past.
-    // We'll include all for test, but in real usage, slots endpoint filters past via now check elsewhere.
-    // For simplicity, keep all.
     allSlots.push(...daySlots)
   }
 
@@ -151,12 +188,12 @@ export function getStubBusyBlocks(): BusyBlock[] {
   return []
 }
 
-export function getStubSlots(weeks: number = 2): CalendarSlot[] {
+export function getStubSlots(weeks: number = 2, excludeToday: boolean = false): CalendarSlot[] {
   const start = new Date()
   start.setUTCHours(0, 0, 0, 0)
   const workingHours = { start: '09:00', end: '17:00', days: [1, 2, 3, 4, 5], slotMinutes: 30 }
   // No busy for stub → all available
-  return computeSlots({ startDate: start, weeks, workingHours, busyBlocks: [] })
+  return computeSlots({ startDate: start, weeks, workingHours, busyBlocks: [], excludeToday })
 }
 
 // Real FreeBusy via Service Account JWT (for slots endpoint)

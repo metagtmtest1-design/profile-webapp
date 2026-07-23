@@ -26,7 +26,7 @@ function renderSection(section: Section) {
 
 export function Home() {
   const { data, loading, error } = useContent('home')
-  const { slots, grouped, loading: calLoading, error: calError } = useCalendar(2)
+  const { slots, grouped, loading: calLoading, error: calError, slotMinutes, excludeToday } = useCalendar(2)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   const selectedSlots = useMemo(() => {
@@ -69,9 +69,11 @@ export function Home() {
           <div className="max-w-3xl mx-auto text-center mb-10">
             <h2 className="text-3xl lg:text-4xl font-black tracking-tight mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>Book a meeting</h2>
             <p className="text-gray-600 leading-relaxed">
-              Choose a date and available time. 30-minute intro call, no pitch — just practical next steps.
+              Choose a date and available time. {slotMinutes}-minute intro call (configurable multiple of 15), no pitch — just practical next steps.
               <br />
-              <span className="text-xs text-gray-500">Working hours 09:00-17:00 Mon-Fri, slots exclude busy from booking and personal calendars (privacy: only free/busy, no event details).</span>
+              <span className="text-xs text-gray-500">
+                Working hours 09:00-17:00 Mon-Fri, {slotMinutes} min slots, {excludeToday ? 'excluding today' : 'including today'} — slots exclude busy from booking and personal calendars (privacy: only free/busy, no details).
+              </span>
             </p>
           </div>
 
@@ -86,7 +88,7 @@ export function Home() {
             </div>
           ) : (
             <div className="flex flex-col lg:flex-row gap-8 justify-center items-start">
-              <CalendarView grouped={grouped} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
+              <CalendarView grouped={grouped} selectedDate={selectedDate} onDateSelect={setSelectedDate} excludeToday={excludeToday} slotMinutes={slotMinutes} />
               <div className="w-full max-w-md">
                 {selectedDate ? (
                   <SlotPicker
@@ -94,13 +96,16 @@ export function Home() {
                     slots={selectedSlots}
                     onSlotSelect={(slot) => {
                       // Slice 3 will handle booking form
-                      alert(`Selected slot: ${slot.start} → Booking form coming in Slice 3. Slot: ${JSON.stringify(slot)}`)
+                      alert(`Selected slot: ${slot.start} → Booking form coming in Slice 3.`)
                     }}
+                    slotMinutes={slotMinutes}
                   />
                 ) : (
                   <div className="border rounded-xl p-6 bg-white text-center text-gray-500">
-                    <div className="text-sm">Select a date with availability</div>
-                    <div className="text-xs mt-1">Dark dates have free slots • {slots.length} slots next 2 weeks (stub or live)</div>
+                    <div className="text-sm">Select a date from next 14 days</div>
+                    <div className="text-xs mt-1">
+                      {excludeToday ? 'Excluding today • ' : ''}{slots.length} slots next 2 weeks • {Object.keys(grouped).length} days with availability
+                    </div>
                   </div>
                 )}
               </div>
@@ -108,9 +113,9 @@ export function Home() {
           )}
 
           <div className="mt-8 text-center text-xs text-gray-500">
-            <span className="inline-flex items-center gap-2 px-3 py-1 bg-white border rounded-full">
+            <span className="inline-flex items-center gap-2 px-4 py-2 bg-white border rounded-full">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              {slots.length} slots next 2 weeks • {Object.keys(grouped).length} days • API: /api/calendar/slots?weeks=2
+              {slots.length} slots next 14 days (from {excludeToday ? 'tomorrow' : 'today'}) • {slotMinutes} min each • Configurable multiple of 15
             </span>
           </div>
         </div>

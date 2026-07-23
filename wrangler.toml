@@ -10,6 +10,8 @@ pages_build_output_dir = "dist"
 # SA: portfolio-calendar@portfolio-webapp-503319.iam.gserviceaccount.com — JSON as GCAL_SERVICE_ACCOUNT_KEY secret (encrypted)
 
 # Non-PII vars for local dev (public ok)
+# SLOT_DURATION_MINUTES configurable multiple of 15 per requirement (15,30,45,60...)
+# EXCLUDE_TODAY option not taking any schedule today — true to start from tomorrow
 [vars]
 ENVIRONMENT = "local"
 SITE_URL = "http://localhost:8788"
@@ -17,6 +19,7 @@ WORKING_HOURS_START = "09:00"
 WORKING_HOURS_END = "17:00"
 WORKING_DAYS = "1,2,3,4,5"
 SLOT_DURATION_MINUTES = "30"
+EXCLUDE_TODAY = "false"
 
 # Local D1/R2 for `wrangler pages dev --local`
 [[d1_databases]]
@@ -46,6 +49,7 @@ WORKING_HOURS_START = "09:00"
 WORKING_HOURS_END = "17:00"
 WORKING_DAYS = "1,2,3,4,5"
 SLOT_DURATION_MINUTES = "30"
+EXCLUDE_TODAY = "false"
 # BOOKING_CALENDAR_ID and PERSONAL_CALENDAR_ID intentionally NOT here — set as Encrypted Secrets via Dashboard to avoid PII in public GitHub
 
 # Production env: main branch https://profile-webapp.pages.dev
@@ -66,5 +70,6 @@ WORKING_HOURS_START = "09:00"
 WORKING_HOURS_END = "17:00"
 WORKING_DAYS = "1,2,3,4,5"
 SLOT_DURATION_MINUTES = "30"
+EXCLUDE_TODAY = "false"
 # BOOKING and PERSONAL as Encrypted Secrets via Dashboard
 

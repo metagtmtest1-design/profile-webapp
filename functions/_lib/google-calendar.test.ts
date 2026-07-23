@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeSlotsForDay, computeSlots, parseTime, filterWorkingDays, getStubBusyBlocks, getStubSlots } from './google-calendar'
+import { computeSlotsForDay, computeSlots, parseTime, filterWorkingDays, getStubBusyBlocks, getStubSlots, normalizeSlotMinutes, parseExcludeToday, getNext14Days } from './google-calendar'
 
 describe('google-calendar lib — slot math', () => {
   it('should parse working hours vars START/END 09:00/17:00', () => {
@@ -96,5 +96,58 @@ describe('google-calendar lib — slot math', () => {
   it('should return stub busy blocks for testing', () => {
     const busy = getStubBusyBlocks()
     expect(Array.isArray(busy)).toBe(true)
+  })
+
+  it('should normalize slot minutes to multiple of 15 (configurable)', () => {
+    expect(normalizeSlotMinutes('30')).toBe(30)
+    expect(normalizeSlotMinutes('15')).toBe(15)
+    expect(normalizeSlotMinutes('45')).toBe(45)
+    expect(normalizeSlotMinutes('60')).toBe(60)
+    // Non-multiple of 15 should round down to nearest multiple: 20 → 15, 50 → 45
+    expect(normalizeSlotMinutes('20')).toBe(15)
+    expect(normalizeSlotMinutes('50')).toBe(45)
+    // Invalid defaults to 30
+    expect(normalizeSlotMinutes('')).toBe(30)
+    expect(normalizeSlotMinutes(null as any)).toBe(30)
+  })
+
+  it('should parse excludeToday flag (option not taking schedule today)', () => {
+    expect(parseExcludeToday('true')).toBe(true)
+    expect(parseExcludeToday('false')).toBe(false)
+    expect(parseExcludeToday(true)).toBe(true)
+    expect(parseExcludeToday(false)).toBe(false)
+    expect(parseExcludeToday('1')).toBe(true)
+    expect(parseExcludeToday('0')).toBe(false)
+    expect(parseExcludeToday(undefined)).toBe(false)
+  })
+
+  it('should generate 14 days from today (not full month) for calendar display', () => {
+    const days = getNext14Days(false)
+    expect(days.length).toBe(14)
+    // First day should be today (midnight)
+    const todayStr = new Date().toISOString().split('T')[0]
+    expect(days[0].toISOString().split('T')[0]).toBe(todayStr)
+  })
+
+  it('should exclude today when excludeToday true', () => {
+    const days = getNext14Days(true)
+    expect(days.length).toBe(14)
+    const todayStr = new Date().toISOString().split('T')[0]
+    expect(days[0].toISOString().split('T')[0]).not.toBe(todayStr)
+    // Should start from tomorrow
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    expect(days[0].toISOString().split('T')[0]).toBe(tomorrow.toISOString().split('T')[0])
+  })
+
+  it('should compute slots excluding today when excludeToday true', () => {
+    const start = new Date()
+    start.setUTCHours(0, 0, 0, 0)
+    const wh = { start: '09:00', end: '10:00', days: [0,1,2,3,4,5,6], slotMinutes: 30 }
+    const slotsWithToday = computeSlots({ startDate: start, weeks: 1, workingHours: wh, busyBlocks: [], excludeToday: false })
+    const slotsWithoutToday = computeSlots({ startDate: start, weeks: 1, workingHours: wh, busyBlocks: [], excludeToday: true })
+    // Without today should have fewer slots (excludes today's slots)
+    // For 1 week = 7 days, with today 7*2=14 slots (1h per day 2 slots), without today 6*2=12
+    expect(slotsWithoutToday.length).toBeLessThan(slotsWithToday.length)
   })
 })
