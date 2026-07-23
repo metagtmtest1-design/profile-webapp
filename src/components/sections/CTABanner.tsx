@@ -19,13 +19,13 @@ export function CTABanner({ section, items }: CTABannerProps) {
         {section.heading && <h2 className="text-3xl lg:text-4xl font-black tracking-tight mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>{section.heading}</h2>}
         {first?.title && <h3 className="text-lg text-slate-200 font-medium mb-3">{first.title}</h3>}
         {first?.body && <p className="text-slate-300 mb-8 max-w-2xl mx-auto leading-relaxed">{first.body}</p>}
-        <div className="flex gap-3 justify-center flex-wrap">
+        <div className="flex gap-4 justify-center flex-wrap">
           {first?.link_url && (
-            <a href={first.link_url} className="inline-flex items-center gap-2 px-7 py-3 bg-white text-slate-900 rounded-full font-bold hover:bg-slate-100 shadow-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-900">
+            <a href={first.link_url} className="inline-flex items-center gap-2 px-8 py-4 bg-white text-slate-900 rounded-full font-bold hover:bg-slate-100 shadow-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-900 leading-none">
               {first.link_text || 'Book a free call'} <span aria-hidden>→</span>
             </a>
           )}
-          <a href="#services" className="inline-flex items-center gap-2 px-7 py-3 rounded-full border border-white/20 text-white font-semibold hover:bg-white/10">Explore services</a>
+          <a href="#services" className="inline-flex items-center gap-2 px-8 py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/10 leading-none">Explore services</a>
         </div>
       </div>
     </section>

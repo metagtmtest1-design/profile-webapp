@@ -92,10 +92,12 @@ body {
 .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
 .px-4 { padding-left: 1rem; padding-right: 1rem; }
 .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.px-7 { padding-left: 1.75rem; padding-right: 1.75rem; }
 .px-8 { padding-left: 2rem; padding-right: 2rem; }
 .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
 .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
 .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.py-3\.5 { padding-top: 0.875rem; padding-bottom: 0.875rem; }
 .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
 .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
 .py-10 { padding-top: 2.5rem; padding-bottom: 2.5rem; }
@@ -127,11 +129,16 @@ body {
 .max-w-\[60ch\] { max-width: 60ch; }
 .max-w-\[65ch\] { max-width: 65ch; }
 .w-full { width: 100%; }
+.w-1\.5 { width: 0.375rem; }
+.w-2 { width: 0.5rem; }
 .w-8 { width: 2rem; }
+.w-9 { width: 2.25rem; }
 .w-10 { width: 2.5rem; }
 .w-12 { width: 3rem; }
 .w-14 { width: 3.5rem; }
+.h-1\.5 { height: 0.375rem; }
 .h-8 { height: 2rem; }
+.h-9 { height: 2.25rem; }
 .h-10 { height: 2.5rem; }
 .h-12 { height: 3rem; }
 .h-14 { height: 3.5rem; }
@@ -141,6 +148,7 @@ body {
 .h-80 { height: 20rem; }
 .h-auto { height: auto; }
 .flex { display: flex; }
+.inline-flex { display: inline-flex; }
 .flex-col { flex-direction: column; }
 .flex-wrap { flex-wrap: wrap; }
 .flex-1 { flex: 1; }
@@ -180,8 +188,11 @@ body {
 .italic { font-style: italic; }
 .underline { text-decoration: underline; text-underline-offset: 3px; }
 .tracking-tight { letter-spacing: -0.02em; }
+.tracking-widest { letter-spacing: 0.1em; }
+.uppercase { text-transform: uppercase; }
 .leading-relaxed { line-height: 1.7; }
 .leading-tight { line-height: 1.2; }
+.leading-none { line-height: 1; }
 .inline-block { display: inline-block; }
 .sticky { position: sticky; }
 .top-0 { top: 0; }
