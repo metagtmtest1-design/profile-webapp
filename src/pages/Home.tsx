@@ -97,6 +97,7 @@ export function Home() {
                     onSlotSelect={(slot) => {
                       // Slice 3 will handle booking
                     }}
+                    onClose={() => setSelectedDate(null)}
                     slotMinutes={slotMinutes}
                   />
                 ) : (

@@ -5,6 +5,7 @@ export interface SlotPickerProps {
   date: string
   slots: CalendarSlot[]
   onSlotSelect: (slot: CalendarSlot) => void
+  onClose?: () => void
   slotMinutes?: number
 }
 
@@ -32,7 +33,7 @@ function formatDateLong(dateStr: string): string {
   }
 }
 
-export function SlotPicker({ date, slots, onSlotSelect, slotMinutes = 30 }: SlotPickerProps) {
+export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 30 }: SlotPickerProps) {
   const { morning, afternoon, availableCount } = useMemo(() => {
     const available = slots.filter((s) => s.available)
     const morning: CalendarSlot[] = []
@@ -56,13 +57,20 @@ export function SlotPicker({ date, slots, onSlotSelect, slotMinutes = 30 }: Slot
   }
 
   return (
-    <div className="card rounded-2xl p-6 bg-white shadow-sm max-w-md w-full">
+    <div className="card rounded-2xl p-6 bg-white shadow-sm max-w-md w-full relative">
       <div className="flex justify-between items-start gap-3 mb-5">
         <div>
           <div className="font-bold text-base tracking-tight">{formatDateLong(date)}</div>
           <div className="text-xs text-gray-500 mt-1">{availableCount} available • {slotMinutes} min each</div>
         </div>
-        <span className="px-2.5 py-1 rounded-full bg-slate-900 text-white text-xs">{slotMinutes}m</span>
+        <div className="flex items-center gap-2">
+          <span className="px-4 py-2 rounded-full bg-slate-900 text-white text-xs leading-none">{slotMinutes}m</span>
+          {onClose && (
+            <button onClick={onClose} aria-label="Close" className="w-8 h-8 rounded-full border bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm focus:outline-none focus:ring-2">
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {availableCount === 0 ? (
@@ -104,9 +112,6 @@ export function SlotPicker({ date, slots, onSlotSelect, slotMinutes = 30 }: Slot
         </div>
       )}
 
-      <div className="mt-6 text-[11px] text-gray-400 text-center">
-        Privacy: only free/busy shown, no event details. Slots are {slotMinutes} min (multiple of 15 configurable).
-      </div>
     </div>
   )
 }
