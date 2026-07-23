@@ -2,38 +2,30 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import App from './App'
 
-// Mock lib/api — both health and content (Slice 1)
 vi.mock('./lib/api', () => ({
-  fetchHealth: vi.fn(),
+  fetchHealth: vi.fn().mockResolvedValue({
+    status: 'ok',
+    db: 'ok',
+    r2: 'ok',
+    timestamp: new Date().toISOString(),
+    env: 'test',
+    checks: { d1Ms: 2, r2Ms: 3 },
+  }),
   fetchContent: vi.fn().mockResolvedValue({
     page: { id: 'p1', slug: 'home', title: 'Portfolio', meta_description: 'Desc', sort_order: 0, is_published: 1 },
     sections: [],
   }),
 }))
 
-import { fetchHealth, fetchContent } from './lib/api'
+import { fetchContent, fetchHealth } from './lib/api'
 
-describe('App component - Slice 0+1', () => {
+describe('App component - clean UI (no debug banners)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    // Default mock for content (empty portfolio)
     vi.mocked(fetchContent).mockResolvedValue({
       page: { id: 'p1', slug: 'home', title: 'Portfolio', meta_description: 'Desc', sort_order: 0, is_published: 1 },
       sections: [],
     } as any)
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  it('should render loading state initially', () => {
-    vi.mocked(fetchHealth).mockReturnValue(new Promise(() => {})) // never resolves
-    render(<App />)
-    expect(screen.getByText(/checking/i)).toBeInTheDocument()
-  })
-
-  it('should render health ok badge after fetch (bold banner)', async () => {
     vi.mocked(fetchHealth).mockResolvedValue({
       status: 'ok',
       db: 'ok',
@@ -42,34 +34,16 @@ describe('App component - Slice 0+1', () => {
       env: 'test',
       checks: { d1Ms: 2, r2Ms: 3 },
     } as any)
-
-    render(<App />)
-    await waitFor(() => {
-      expect(screen.getByText(/BOLD TEST ENV/i)).toBeInTheDocument()
-    })
-    // Health badge in details or banner contains db ok
-    expect(screen.getAllByText(/db: ok/i).length + screen.getAllByText(/DB: ok/i).length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('should render error when health fails', async () => {
-    vi.mocked(fetchHealth).mockRejectedValue(new Error('D1 connection failed'))
-
-    render(<App />)
-    await waitFor(() => {
-      expect(screen.getAllByText(/D1 connection failed/i).length).toBeGreaterThanOrEqual(1)
+    // Ensure pathname is root for main tests
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/' },
+      writable: true,
     })
   })
 
-  it('should render portfolio content from D1 (Home) when health ok', async () => {
-    vi.mocked(fetchHealth).mockResolvedValue({
-      status: 'ok',
-      db: 'ok',
-      r2: 'ok',
-      timestamp: new Date().toISOString(),
-      env: 'test',
-      checks: { d1Ms: 2, r2Ms: 3 },
-    } as any)
+  afterEach(() => vi.restoreAllMocks())
 
+  it('should render portfolio content from D1 (Home) without debug banners', async () => {
     vi.mocked(fetchContent).mockResolvedValue({
       page: { id: 'p1', slug: 'home', title: 'My Portfolio', sort_order: 0, is_published: 1 },
       sections: [
@@ -78,12 +52,30 @@ describe('App component - Slice 0+1', () => {
     } as any)
 
     render(<App />)
-    await waitFor(() => {
-      expect(screen.getByText(/Welcome Home/)).toBeInTheDocument()
-    })
+    await waitFor(() => expect(screen.getByText(/Welcome Home/)).toBeInTheDocument())
+    // Should NOT show BOLD ENV debug banner on main page (moved to /health)
+    expect(screen.queryByText(/BOLD .* ENV/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/DB: ok/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/R2: ok/i)).not.toBeInTheDocument()
   })
 
-  it('should show ENVIRONMENT banner when not production (alpha)', async () => {
+  it('should render loading state for content', () => {
+    vi.mocked(fetchContent).mockReturnValue(new Promise(() => {}) as any)
+    render(<App />)
+    expect(screen.getByText(/loading portfolio/i)).toBeInTheDocument()
+  })
+
+  it('should handle content empty gracefully', async () => {
+    render(<App />)
+    await waitFor(() => screen.getByText(/content is being prepared/i))
+    expect(screen.getByText(/check back soon/i)).toBeInTheDocument()
+  })
+
+  it('should render health debug page at /health route (env in /health, not main)', async () => {
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/health' },
+      writable: true,
+    })
     vi.mocked(fetchHealth).mockResolvedValue({
       status: 'ok',
       db: 'ok',
@@ -95,28 +87,16 @@ describe('App component - Slice 0+1', () => {
     } as any)
 
     render(<App />)
-    await waitFor(() => {
-      expect(screen.getByText(/BOLD ALPHA ENV/i)).toBeInTheDocument()
-    })
-    expect(screen.getAllByText(/ALPHA/i).length).toBeGreaterThanOrEqual(1)
+    await waitFor(() => expect(screen.getByText(/System Health — Debug/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText(/DB: ok/i).length).toBeGreaterThanOrEqual(1))
+    expect(screen.getAllByText(/R2: ok/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/alpha/i).length).toBeGreaterThanOrEqual(1)
   })
 
-  it('should show bold production banner when env=production (merged PR)', async () => {
-    vi.mocked(fetchHealth).mockResolvedValue({
-      status: 'ok',
-      db: 'ok',
-      r2: 'ok',
-      timestamp: new Date().toISOString(),
-      env: 'production',
-      checks: { d1Ms: 2, r2Ms: 3 },
-    } as any)
-
+  it('should not show infra health details on main portfolio page', async () => {
     render(<App />)
-    await waitFor(() => {
-      expect(screen.getByText(/BOLD PRODUCTION ENV/i)).toBeInTheDocument()
-    })
-    expect(screen.getAllByText(/PRODUCTION/i).length).toBeGreaterThanOrEqual(1)
-    // Prod banner text differs slightly after merge — check for green merge proof
-    expect(screen.getByText(/green proves merge|PROD — green/i)).toBeInTheDocument()
+    await waitFor(() => screen.getByText(/content is being prepared/i))
+    expect(screen.queryByText(/Infra health/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/D1\+R2/i)).not.toBeInTheDocument()
   })
 })

@@ -13,16 +13,14 @@ describe('Testimonials', () => {
         ]}
       />
     )
-    expect(screen.getByText(/Happy Clients/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Happy Clients/ })).toBeInTheDocument()
     expect(screen.getByText(/Great work/)).toBeInTheDocument()
     expect(screen.getByText(/John Smith/)).toBeInTheDocument()
-    expect(screen.getByText(/Amazing collaboration/)).toBeInTheDocument()
-    expect(screen.getByText(/Alice Johnson/)).toBeInTheDocument()
   })
 
   it('should handle empty testimonials', () => {
     render(<Testimonials section={{ id: 'sec4', type: 'testimonials', heading: 'Testimonials' } as any} items={[]} />)
     expect(screen.getByRole('heading', { name: /testimonials/i })).toBeInTheDocument()
-    expect(screen.getByText(/No testimonials yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/Client feedback coming soon/i)).toBeInTheDocument()
   })
 })

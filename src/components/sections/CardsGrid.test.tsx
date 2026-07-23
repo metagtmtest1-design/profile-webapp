@@ -27,13 +27,12 @@ describe('CardsGrid', () => {
       expect(screen.getByText(it.title)).toBeInTheDocument()
       expect(screen.getByText(it.body)).toBeInTheDocument()
     })
-    // Should be 6 cards
     expect(screen.getAllByText(/Service \d/).length).toBe(6)
   })
 
   it('should handle empty items', () => {
     render(<CardsGrid section={{ id: 'sec2', type: 'cards-grid', heading: 'Services' } as any} items={[]} />)
     expect(screen.getByRole('heading', { name: /services/i })).toBeInTheDocument()
-    expect(screen.getByText(/No services yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/Services coming soon/i)).toBeInTheDocument()
   })
 })

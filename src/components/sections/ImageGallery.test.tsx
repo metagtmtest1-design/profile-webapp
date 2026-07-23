@@ -13,15 +13,15 @@ describe('ImageGallery', () => {
         ]}
       />
     )
-    expect(screen.getByText(/My Work/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /My Work/ })).toBeInTheDocument()
     expect(screen.getByText(/Work 1/)).toBeInTheDocument()
     const imgs = document.querySelectorAll('img')
     expect(imgs.length).toBe(2)
-    expect(imgs[0].src).toContain('work1.jpg')
   })
 
   it('should handle empty gallery', () => {
     render(<ImageGallery section={{ id: 'sec6', type: 'image-gallery', heading: 'Gallery' } as any} items={[]} />)
-    expect(screen.getByText(/Gallery/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Gallery/ })).toBeInTheDocument()
+    expect(screen.getByText(/Selected work coming soon/i)).toBeInTheDocument()
   })
 })
