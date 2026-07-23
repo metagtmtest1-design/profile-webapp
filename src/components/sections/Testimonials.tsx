@@ -8,26 +8,28 @@ export interface TestimonialsProps {
 
 export function Testimonials({ section, items }: TestimonialsProps) {
   return (
-    <section className="py-20 bg-white">
+    <section className="py-20 lg:py-24 bg-white" id="testimonials">
       <div className="max-w-5xl mx-auto px-6">
-        {section.heading && (
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-black tracking-tight">{section.heading}</h2>
-            {section.subheading && <p className="text-gray-600 mt-3">{section.subheading}</p>}
-          </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        <div className="max-w-2xl mx-auto text-center mb-12">
+          {section.heading && <h2 className="text-3xl lg:text-4xl font-black tracking-tight" style={{ fontFamily: 'Playfair Display, serif' }}>{section.heading}</h2>}
+          {section.subheading && <p className="text-gray-600 mt-4">{section.subheading}</p>}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {items.map((item) => (
-            <div key={item.id} className="card p-6 bg-gray-50">
-              <div className="text-3xl text-gray-300 mb-2" aria-hidden="true">“</div>
-              {item.body && <p className="text-gray-800 mb-4 leading-relaxed">"{item.body}"</p>}
+            <div key={item.id} className="card p-6 bg-slate-50 border-slate-200">
+              <div className="flex gap-1 mb-3" aria-hidden="true">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <span key={i} className="text-amber-400 text-sm">★</span>
+                ))}
+              </div>
+              {item.body && <p className="text-gray-800 leading-relaxed mb-5">"{item.body}"</p>}
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold flex-none">
-                  {item.author?.[0] || 'J'}
+                <div className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold flex-none">
+                  {item.author?.trim()?.[0] || '•'}
                 </div>
                 <div>
-                  {item.author && <p className="font-semibold text-sm">{item.author}</p>}
-                  {item.title && <p className="text-xs text-gray-500">{item.title}</p>}
+                  {item.author && <div className="font-semibold text-sm leading-tight">{item.author}</div>}
+                  {item.title && <div className="text-xs text-gray-500">{item.title}</div>}
                 </div>
               </div>
             </div>
