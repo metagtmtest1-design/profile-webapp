@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fetchHealth } from './api'
+import { fetchHealth, fetchContent } from './api'
 
 describe('api client - fetchHealth', () => {
   beforeEach(() => {
@@ -86,5 +86,38 @@ describe('api client - fetchHealth', () => {
     const result = await fetchHealth()
     expect(result.db).toBe('ok')
     expect(result.r2).toBe('ok')
+  })
+})
+
+describe('api client - fetchContent', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('should fetch /api/content/home and parse page+sections+items', async () => {
+    const mock = {
+      page: { id: 'p1', slug: 'home', title: 'Portfolio', meta_description: 'Desc', sort_order: 0, is_published: 1 },
+      sections: [
+        { id: 's1', page_id: 'p1', type: 'hero', heading: 'Hi', sort_order: 0, is_visible: 1, config: {}, items: [{ id: 'i1', title: 'T', sort_order: 0, is_visible: 1 }] },
+      ],
+    }
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => mock } as any)
+    const result = await fetchContent('home')
+    expect(result.page.slug).toBe('home')
+    expect(result.sections.length).toBe(1)
+    expect(fetch).toHaveBeenCalledWith('/api/content/home', expect.anything())
+  })
+
+  it('should throw ApiError 404 for unknown slug', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: 'Page not found' }) } as any)
+    await expect(fetchContent('unknown')).rejects.toThrow(/404/)
+  })
+
+  it('should handle network error for content', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('Network error'))
+    await expect(fetchContent('home')).rejects.toThrow(/Network/)
   })
 })
