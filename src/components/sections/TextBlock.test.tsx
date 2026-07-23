@@ -28,6 +28,6 @@ describe('TextBlock / About', () => {
 
   it('should handle no items', () => {
     render(<TextBlock section={{ id: 'sec3', type: 'text-block', heading: 'About' } as any} items={[]} />)
-    expect(screen.getByText(/about/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /about/i })).toBeInTheDocument()
   })
 })

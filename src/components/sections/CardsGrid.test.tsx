@@ -21,7 +21,7 @@ describe('CardsGrid', () => {
       />
     )
 
-    expect(screen.getByText(/Services/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Services/ })).toBeInTheDocument()
     expect(screen.getByText(/What I do/)).toBeInTheDocument()
     items.forEach((it) => {
       expect(screen.getByText(it.title)).toBeInTheDocument()
