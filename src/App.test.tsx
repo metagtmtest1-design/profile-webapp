@@ -15,17 +15,29 @@ vi.mock('./lib/api', () => ({
     page: { id: 'p1', slug: 'home', title: 'Portfolio', meta_description: 'Desc', sort_order: 0, is_published: 1 },
     sections: [],
   }),
+  fetchCalendarSlots: vi.fn().mockResolvedValue([]),
+  fetchSlotsFull: vi.fn().mockResolvedValue({ slots: [], weeks: 2, source: 'stub' }),
 }))
 
-import { fetchContent, fetchHealth } from './lib/api'
+import { fetchContent, fetchHealth, fetchCalendarSlots } from './lib/api'
 
 describe('App component - clean UI (no debug banners)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    // Default mocks
     vi.mocked(fetchContent).mockResolvedValue({
       page: { id: 'p1', slug: 'home', title: 'Portfolio', meta_description: 'Desc', sort_order: 0, is_published: 1 },
       sections: [],
     } as any)
+    vi.mocked(fetchHealth).mockResolvedValue({
+      status: 'ok',
+      db: 'ok',
+      r2: 'ok',
+      timestamp: new Date().toISOString(),
+      env: 'test',
+      checks: { d1Ms: 2, r2Ms: 3 },
+    } as any)
+    vi.mocked(fetchCalendarSlots).mockResolvedValue([] as any)
     vi.mocked(fetchHealth).mockResolvedValue({
       status: 'ok',
       db: 'ok',
