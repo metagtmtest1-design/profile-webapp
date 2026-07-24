@@ -9,9 +9,10 @@ pages_build_output_dir = "dist"
 # Booking calendars: Alpha 4b32...bf4a0@group, Prod 33b9...5847a@group, Personal metagtmtest1@gmail.com — stored as Encrypted Secrets via Dashboard (not in public repo)
 # SA: portfolio-calendar@portfolio-webapp-503319.iam.gserviceaccount.com — JSON as GCAL_SERVICE_ACCOUNT_KEY secret (encrypted)
 
-# Non-PII vars for local dev (public ok)
-# SLOT_DURATION_MINUTES configurable multiple of 15 per requirement (15,30,45,60...)
-# EXCLUDE_TODAY option not taking any schedule today — true to start from tomorrow
+# Non-PII vars for local dev (public ok, not PII, not secret)
+# SLOT_DURATION configurable multiple of 15, EXCLUDE_TODAY true = don't schedule today, TIMEZONE Eastern for now configurable admin later
+# TURNSTILE_SITE_KEY public key 0x4AAAAAAD8-3h6x-RUDasMf — public, okay in public GitHub (site key, not secret)
+# Secret keys (TURNSTILE_SECRET_KEY, GCAL_SERVICE_ACCOUNT_KEY, BOOKING/PERSONAL calendar IDs) as Encrypted Secrets via Dashboard
 [vars]
 ENVIRONMENT = "local"
 SITE_URL = "http://localhost:8788"
@@ -20,6 +21,8 @@ WORKING_HOURS_END = "17:00"
 WORKING_DAYS = "1,2,3,4,5"
 SLOT_DURATION_MINUTES = "30"
 EXCLUDE_TODAY = "true"
+TIMEZONE = "America/New_York"
+TURNSTILE_SITE_KEY = "0x4AAAAAAD8-3h6x-RUDasMf"
 
 # Local D1/R2 for `wrangler pages dev --local`
 [[d1_databases]]
@@ -50,7 +53,9 @@ WORKING_HOURS_END = "17:00"
 WORKING_DAYS = "1,2,3,4,5"
 SLOT_DURATION_MINUTES = "30"
 EXCLUDE_TODAY = "true"
-# BOOKING_CALENDAR_ID and PERSONAL_CALENDAR_ID intentionally NOT here — set as Encrypted Secrets via Dashboard to avoid PII in public GitHub
+TIMEZONE = "America/New_York"
+TURNSTILE_SITE_KEY = "0x4AAAAAAD8-3h6x-RUDasMf"
+# BOOKING_CALENDAR_ID and PERSONAL_CALENDAR_ID as Encrypted Secrets via Dashboard (PII not public)
 
 # Production env: main branch https://profile-webapp.pages.dev
 [env.production]
@@ -71,5 +76,7 @@ WORKING_HOURS_END = "17:00"
 WORKING_DAYS = "1,2,3,4,5"
 SLOT_DURATION_MINUTES = "30"
 EXCLUDE_TODAY = "true"
+TIMEZONE = "America/New_York"
+TURNSTILE_SITE_KEY = "0x4AAAAAAD8-3h6x-RUDasMf"
 # BOOKING and PERSONAL as Encrypted Secrets via Dashboard
 
