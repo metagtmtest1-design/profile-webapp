@@ -20,6 +20,7 @@ WORKING_HOURS_END = "17:00"
 WORKING_DAYS = "1,2,3,4,5"
 SLOT_DURATION_MINUTES = "30"
 EXCLUDE_TODAY = "true"
+TIMEZONE = "America/New_York"
 
 # Local D1/R2 for `wrangler pages dev --local`
 [[d1_databases]]
@@ -50,6 +51,7 @@ WORKING_HOURS_END = "17:00"
 WORKING_DAYS = "1,2,3,4,5"
 SLOT_DURATION_MINUTES = "30"
 EXCLUDE_TODAY = "true"
+TIMEZONE = "America/New_York"
 # BOOKING_CALENDAR_ID and PERSONAL_CALENDAR_ID intentionally NOT here — set as Encrypted Secrets via Dashboard to avoid PII in public GitHub
 
 # Production env: main branch https://profile-webapp.pages.dev
@@ -71,5 +73,6 @@ WORKING_HOURS_END = "17:00"
 WORKING_DAYS = "1,2,3,4,5"
 SLOT_DURATION_MINUTES = "30"
 EXCLUDE_TODAY = "true"
+TIMEZONE = "America/New_York"
 # BOOKING and PERSONAL as Encrypted Secrets via Dashboard
 

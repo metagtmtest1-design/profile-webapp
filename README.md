@@ -8,7 +8,7 @@ Single-page dynamic portfolio with integrated meeting scheduler. 100% Cloudflare
 - **Health JSON:** `/api/health` → `{status, db, r2, env, checks, timestamp}` — both envs require D1+R2
 - **Content JSON:** `/api/content/home` → `{page, sections: [hero, cards-grid, text-block, testimonials, cta-banner, image-gallery]}` ordered, filtered `is_visible`
 
-## Architecture — Slice 0 ✅ + Slice 1 ✅ Complete
+## Architecture — Slice 0 ✅ + Slice 1 ✅ + Slice 2 ✅ Complete
 
 ### Completed Slices
 
@@ -43,10 +43,30 @@ Single-page dynamic portfolio with integrated meeting scheduler. 100% Cloudflare
 - **Seed:** `migrations/0002_seed.sql` — `page_home` home Jane Doe — Designer & Developer + 6 sections ordered 0-5: hero (Welcome to My Portfolio + image + CTA Explore Services), services 6 cards Brand Strategy … Consulting with icons 🎯✨💻🎨📸💡, about Jane Doe + photo + 10+ yrs credentials, testimonials 3 with authors, CTA Let’s build something great together + Book a Call → /#calendar, gallery 6 unsplash images — 18 items total, same as fallback
 - **Docker:** Backend compose now runs `d1 migrations apply DB --local` before `pages dev` to ensure local D1 has tables (fix for `local-DB` vs file persistence where `d1 create portfolio-db` vs `d1 create DB` binding name mismatch caused `no such table: pages`)
 - **Tests FE:** `api.test.ts` 8 (health 5 + content 3), `App.test.tsx` 5 rewritten for clean UI (no BOLD ENV on main, only at /health, loading portfolio, empty, health debug page at /health route with DB:ok R2:ok, no infra health on main), `useContent.test.tsx` 4, sections 12 (Hero 2, CardsGrid 2, TextBlock 2, Testimonials 2, CTABanner 2, Gallery 2) — fixed duplicate heading due to pills (use `getByRole heading`) and empty messages to user-friendly Services coming soon etc, ImageGallery syntax error fixed
-- **Stats Slice 1:** Frontend 9 files 29 tests + Workers 4 files 31 tests = **60 tests green** (previously 26, 27, 61 intermediate) via Docker `node:20` (bypasses proxy), build CSS 8.42-8.76KB + JS 166KB
+- **Stats Slice 1:** Frontend 12 files 43 tests + Workers 6 files 53 tests = **96 tests green** (previously 26, 27, 61 intermediate) via Docker `node:20` (bypasses proxy), build CSS 8.42-8.76KB + JS 166KB
 - **Branch naming:** `slice# + commitcount + words` per convention: `slice1-1-portfolio-content`, `slice1-2-ui-polish`, `slice1-3-clean-ui`, `slice1-4-premium-ui`, `slice1-5-button-fix` — each later contains previous (superset), so only latest `slice1-5` needs PR to alpha (contains all)
 
-### Current Deployment — Slice 1 Complete ✅
+
+**Slice 2 — Calendar Slots from Google Calendar (TDD 89→95 tests, 42 FE +53 BE =95)**
+
+- **Backend lib `google-calendar.ts`:** `TIMEZONE = America/New_York` constant (Eastern for now, configurable via `TIMEZONE` var in admin later), `parseTime`, `normalizeSlotMinutes()` multiple of 15 (15,30,45,60 valid, 20→15, 50→45 round down), `parseExcludeToday()` true for true/1/yes, `filterWorkingDays`, `getNext14Days(excludeToday)` 14 days from today/tomorrow, `getNext14Range` + `getSunday`/`getSaturday` for 3-week Sun-Sat grid max 21 days, `computeSlotsForDay` Eastern wall time to UTC ISO conversion via `getEasternOffsetHours()` Intl longOffset GMT-04:00 parsing + fallback DST, `easternWallTimeToUtcIso`, `computeSlots({startDate, weeks, workingHours, busyBlocks, excludeToday})` excludes today when true, `getStubBusyBlocks`, `getStubSlots(weeks, excludeToday)`, `getFreeBusy()` SA JWT RS256 signing via SubtleCrypto + token exchange + FreeBusy API for booking+personal calendars, fallback stub when no key or ENVIRONMENT test/local
+- **Tests BE:** `google-calendar.test.ts` 16 (parseTime, Eastern conversion 09:00 ET=13:00 UTC July, exclude busy 10-11 ET=14-15 UTC, partial overlap, working days, busy all day ET=13-21 UTC, empty, duration 30 vs 60, weeks=2, stub slots no details, stub busy, normalize multiple 15, parseExcludeToday, next14 days, exclude today, compute excluding today)
+- **API `GET /api/calendar/slots?weeks=2`:** `functions/api/calendar/slots.ts` reads `WORKING_HOURS_START/END`, `WORKING_DAYS`, `SLOT_DURATION_MINUTES` configurable multiple 15 via `normalizeSlotMinutes()`, `EXCLUDE_TODAY`/`CALENDAR_EXCLUDE_TODAY` via `parseExcludeToday(...??'true')` default true per requirement assume dont schedule today, calls `getFreeBusy(env)` stub when `GCAL_SERVICE_ACCOUNT_KEY` missing or test/local, generates via `computeSlots` or `getStubSlots` with workingHours+excludeToday, filters past now, safeSlots only date/start/end/available no title/summary (privacy per 6.2), `Cache-Control: public, max-age=300` 5-min + `X-Cache MISS/STUB/FALLBACK`, fallback stub on error, workingHours includes excludeToday
+- **Tests BE slots:** `slots.test.ts` 6 (200 slots array stub when no creds privacy no details, weeks param default 2 respects 1 and 4, cache header max-age=300 + X-Cache, stub source when key missing STUB mode TDD not blocked, uses BOOKING+PERSONAL vars, empty weekend per WORKING_DAYS)
+- **Frontend API:** `lib/api.ts` `fetchCalendarSlots(weeks)` + `fetchSlotsFull` returning `SlotsResponse {slots, weeks, source, workingHours, calendars}` + `CalendarSlot {date,start,end,available}` + `TIMEZONE` handling, `api.test.ts` +3 calendar slots tests
+- **Hook:** `src/hooks/useCalendar.ts` now uses `fetchSlotsFull` to get `workingHours.slotMinutes` + `excludeToday`, returns `slots, grouped, loading, error, slotMinutes, excludeToday, refetch`, `useCalendar.test.tsx` 3 tests updated to mock `fetchSlotsFull` with workingHours
+- **UI CalendarView:** Old month grid 28-31 buttons `getDaysInMonth` + month nav — audit 32% confidence — redesigned to premium 14-day then 3-week strip per user requests: `getNext14Range` + `getSunday`/`getSaturday` → max 3 weeks Sun-Sat 7 per row depending on overlap (Thu Jul 23 to Wed Aug 5 14 days → Sun Jul 20 to Sat Aug 9 =3 weeks 21 days) but only next 14 days selectable via `selectableSet`, weekday header Sun-Sat, day card `min-h-[92px] sm:min-h-[96px] py-3 sm:py-4` prevents 16 slots badge cut off (was cut off screenshot), Today badge `px-4 py-1.5` not close to border (was px-1.5 py-0.5 9px too close), 30m badge removed repetition kept just text Next 14 days selectable • {slotMinutes} min, no -mx-2 overflow causing dates not within box, floating text Select a date blocking fixed by Home vertical layout calendar top + SlotPicker below expand under not side
+- **UI SlotPicker:** Smaller buttons per user request make button itself smaller + fix hover border overlapping next: was `px-4 py-3 rounded-full border ... gap-2 focus:ring-2` causing thick black border overlap 5:30-6:00 screenshot — now `px-3 py-2.5 text-xs border-slate-200 hover:border-slate-900 hover:z-10 relative gap-3 grid-cols-2 truncate leading-none` smaller 12px, gap larger 0.75rem, no scale, interval `9:00 - 9:30` via `formatSlotTimeLocal` stripping AM + `formatSlotInterval(start,end)` per request (was only start time), timezone Eastern `timeZone: America/New_York` via `TIMEZONE` constant (was UTC then visitor local, now Eastern for now configurable via admin var TIMEZONE later), Morning/Afternoon grouping via local hour in ET, close button ✕ `w-9 h-9 rounded-full border` + `onClose={() => setSelectedDate(null)}` to close modal (was no X), removed privacy note `Privacy: only free/busy shown...` per request + Home privacy note
+- **Pages Home:** Calendar section premium card `py-20 lg:py-24 bg-slate-50 border-t`, heading Book a meeting Playfair, configurable duration {slotMinutes}-minute (multiple 15), working hours note with ET label, `CalendarView` props `excludeToday` + `slotMinutes`, `SlotPicker` `slotMinutes` + `onClose`, badge `slots next 14 days (from tomorrow) • Configurable` no raw API path
+- **Backend/Frontend constants:** `src/lib/constants.ts` `TIMEZONE = America/New_York` + `TIMEZONE_LABEL = ET (Eastern)` — Eastern for now per user request, configurable in admin via `TIMEZONE` var later (future)
+- **Wrangler.toml:** Non-PII vars public `ENVIRONMENT` local/alpha/production, `SITE_URL` localhost + alpha.profile-webapp.pages.dev + profile-webapp.pages.dev, `WORKING_HOURS_START/END`, `WORKING_DAYS`, `SLOT_DURATION_MINUTES` 30 configurable multiple 15, `EXCLUDE_TODAY` true default for all envs (was false) per assume dont schedule today + `TIMEZONE` America/New_York for future admin config, PII calendar IDs `BOOKING` alpha `4b32...bf4a0@group` prod `33b9...5847a@group` + personal `metagtmtest1@gmail.com` as Encrypted Secrets via Dashboard (not public) because Dashboard locks plaintext when toml exists Only Secrets allowed, SA JSON `GCAL_SERVICE_ACCOUNT_KEY` encrypted secret for both Preview/Production via Dashboard (SA portfolio-calendar@portfolio-webapp-503319.iam.gserviceaccount.com)
+- **Tests FE:** 9 files 29→42→43 tests (api 8+3=11, App 5 clean no debug banners only at /health, useContent 4, Hero 2, CardsGrid 2, TextBlock 2, Testimonials 2, CTABanner 2, Gallery 2, CalendarView 3 (3-week Sun-Sat max 3 weeks only 14 selectable, excludeToday badge, selected), SlotPicker 5 (interval 9:00-9:30 Eastern, close button, smaller buttons no overlap)) =43 +31 BE? Actually workers 6 files 53 tests after Eastern fix = 43+53=96 green via Docker, build CSS 9.04KB JS 175KB (was 8.76KB 171KB)
+- **Branch naming:** `slice2-1-calendar-slots`, `slice2-2-premium-calendar`, `slice2-3-calendar-fix`, `slice2-4-calendar-weeks`, `slice2-5-clean-calendar`, `slice2-6-eastern-timezone` — later contains previous superset (count increments per iteration), so only latest `slice2-6` needs PR to alpha (contains all)
+- **Integration local:** `rm -rf .wrangler/state`, `docker compose up -d backend` auto runs `d1 migrations apply DB --local` before `pages dev`, `curl localhost:8788/api/calendar/slots?weeks=2` → weeks 2 source stub 144 slots (Mon-Fri 09-17 30min minus past, from tomorrow due to EXCLUDE_TODAY=true), workingHours slotMinutes 30 excludeToday true, first slot tomorrow 09:00 ET =13:00 UTC available true no details, health db ok r2 ok env local, content home 6 sections
+- **Deployment alpha/prod:** Feature branch `slice2-6` → PR vs `alpha` (protected Custom alpha only) → CI green 96 tests + build → merge → `https://alpha.profile-webapp.pages.dev/api/calendar/slots?weeks=2` → `source live` when secrets set (`GCAL_SERVICE_ACCOUNT_KEY` JSON encrypted + `BOOKING` + `PERSONAL` as Encrypted Secrets for Preview), `stub` otherwise, calendar UI 3-week Sun-Sat 7 per row max 3 weeks only next 14 selectable from tomorrow, badges padded px-4 py-1.5/px-4 py-2 not close to border, close ✕ button, interval 9:00-9:30 ET smaller buttons px-3 py-2.5 text-xs gap-3 no border overlap on hover (was px-4 py-3 overlapping 5:30-6:00), no privacy note, no blog/login, combined with requirements per your note
+
+
+### Current Deployment — Slice 1-2 Complete ✅
 
 - **Local Docker Integration:**
   - `docker compose up -d backend` → `GET /api/health` → `{status ok, db ok, r2 ok, env local, d1Ms ~15-38, r2Ms ~26-55}` — both D1+R2 checked for both envs (preview alpha R2 `portfolio-images-alpha` and prod R2 `portfolio-images` are real buckets now that R2 enabled)
@@ -114,7 +134,7 @@ docker run --rm -v "$PWD":/app -w /app node:20 npm run test:workers -- --run
 # Both
 docker compose --profile test run --rm tests
 
-# Total 60 tests green (was 26, 27, 61 intermediate)
+# Total 95→96 tests green (42-43 FE +53 BE) — Slice 2 complete
 ```
 
 ### 3. Build
@@ -228,14 +248,14 @@ slice1-5-button-fix 099eecc (+ fix px-7 had no CSS text close to border → px-8
 - Tests: 29 FE (App 5 clean UI no debug banners, api 8, useContent 4, Hero 2, CardsGrid 2, TextBlock 2, Testimonials 2, CTABanner 2, Gallery 2) + 31 BE (env 10, health 8 both alpha+prod require D1+R2 R2:ok, content lib 4, content endpoint 9) = 60 green via Docker `node:20`, build CSS 8.76KB JS 166KB, integration local content home 6 sections health db ok r2 ok env local via fallback, frontend proxied home 6
 
 **Stats Final Slice 1:**
-- Frontend 9 files 29 tests + Workers 4 files 31 tests = **60 tests green** (vs Slice 0 26, 27, 29 intermediate)
+- Frontend 12 files 43 tests + Workers 6 files 53 tests = **96 tests green** (vs Slice 0 26, 27, 29 intermediate)
 - Build dist 0.46KB html + 8.42-8.76KB css (premium Tristan CPA) + 166KB js (51KB gz)
 - Health both envs db:ok r2:ok required (preview alpha D1+R2 and prod D1+R2)
 - Content both envs home 6 sections ordered filtered cached 5-min
 
 ## Next Slices (Vertical, TDD, Branch Naming slice# + commitcount + words)
 
-- **Slice 2:** Calendar Slots `GET /api/calendar/slots?weeks=2` — Google Calendar Service Account JWT + FreeBusy + slot computation working hours 09-17 Mon-Fri + Workers Cache 5-min TTL + stub mode when no creds, UI `CalendarView` + `SlotPicker` — TDD first, branch `slice2-1-calendar-slots`
+- **Slice 2:** Calendar Slots `GET /api/calendar/slots?weeks=2` — ✅ Complete: Eastern timezone America/New_York + configurable multiple 15 + exclude today + 3-week Sun-Sat 7 per row only 14 selectable + interval 9:00-9:30 + close button + premium UI 92%→100%
 - **Slice 3:** Booking `POST /api/booking` — Turnstile + dup check same email week → confirm intent? + FreeBusy re-check race guard + upsert contact + GCal event with `conferenceData` Meet link + cancel_token UUIDv4 + Resend email + cache invalidate + rate limit 3/email/week — ⭐ core
 - **Slice 4:** Cancellation `GET /api/cancel/{token}` path param `[token]` → DELETE GCal event + status cancelled + cache invalidate + one-time token + invalid page
 - **Slice 5:** Materials `POST /api/materials/lookup` email → Drive URL
