@@ -90,12 +90,15 @@ body {
 .p-6 { padding: 1.5rem; }
 .p-8 { padding: 2rem; }
 .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.px-3\.5 { padding-left: 0.875rem; padding-right: 0.875rem; }
 .px-4 { padding-left: 1rem; padding-right: 1rem; }
 .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
 .px-7 { padding-left: 1.75rem; padding-right: 1.75rem; }
 .px-8 { padding-left: 2rem; padding-right: 2rem; }
 .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.py-1\.5 { padding-top: 0.375rem; padding-bottom: 0.375rem; }
 .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.py-2\.5 { padding-top: 0.625rem; padding-bottom: 0.625rem; }
 .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
 .py-3\.5 { padding-top: 0.875rem; padding-bottom: 0.875rem; }
 .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
@@ -218,12 +221,12 @@ body {
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
 
 /* Responsive */
+.hidden { display: none; }
 @media (min-width: 640px) {
   .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sm\:gap-6 { gap: 1.5rem; }
   .sm\:inline { display: inline; }
   .sm\:flex { display: flex; }
-  .hidden { display: none; }
 }
 @media (min-width: 768px) {
   .md\:flex-row { flex-direction: row; }

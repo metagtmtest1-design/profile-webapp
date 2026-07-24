@@ -72,7 +72,7 @@ export function Home() {
               Choose a date and available time. {slotMinutes}-minute intro call (configurable multiple of 15), no pitch — just practical next steps.
               <br />
               <span className="text-xs text-gray-500">
-                Working hours 09:00-17:00 Mon-Fri, {slotMinutes} min slots, {excludeToday ? 'excluding today' : 'including today'} — slots exclude busy from booking and personal calendars (privacy: only free/busy, no details).
+                Working hours 09:00-17:00 Mon-Fri, {slotMinutes} min slots, {excludeToday ? 'excluding today' : 'including today'} — slots exclude busy from your booking and personal calendars.
               </span>
             </p>
           </div>
@@ -115,7 +115,7 @@ export function Home() {
           <div className="mt-8 text-center text-xs text-gray-500">
             <span className="inline-flex items-center gap-2 px-4 py-2 bg-white border rounded-full">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              {slots.length} slots next 14 days (from {excludeToday ? 'tomorrow' : 'today'}) • {slotMinutes} min each • Configurable multiple of 15
+              {slots.length} slots next 14 days (from {excludeToday ? 'tomorrow' : 'today'}) • Configurable
             </span>
           </div>
         </div>

@@ -37,7 +37,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       }
     }
 
-    const excludeToday = parseExcludeToday((env as any)?.EXCLUDE_TODAY ?? (env as any)?.CALENDAR_EXCLUDE_TODAY)
+    // Default true per requirement assume dont schedule today (C1)
+    const excludeToday = parseExcludeToday((env as any)?.EXCLUDE_TODAY ?? (env as any)?.CALENDAR_EXCLUDE_TODAY ?? 'true')
 
     const workingHours = {
       start: env?.WORKING_HOURS_START || '09:00',
@@ -107,8 +108,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       }
     )
   } catch (e: any) {
-    // Fallback to stub on error
-    const fallbackSlots = getStubSlots(2)
+    // Fallback to stub on error — respect excludeToday true default
+    const fallbackSlots = getStubSlots(2, true)
     return new Response(
       JSON.stringify({
         slots: fallbackSlots,

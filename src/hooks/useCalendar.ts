@@ -16,7 +16,7 @@ export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalen
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [slotMinutes, setSlotMinutes] = useState(30)
-  const [excludeToday, setExcludeToday] = useState(false)
+  const [excludeToday, setExcludeToday] = useState(true) // default true per requirement assume dont schedule today
 
   const fetch = useCallback(async () => {
     setLoading(true)
