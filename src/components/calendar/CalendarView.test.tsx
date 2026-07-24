@@ -24,8 +24,9 @@ describe('CalendarView', () => {
   it('should support excludeToday option not taking any schedule today', () => {
     const grouped = {} as any
     render(<CalendarView grouped={grouped} selectedDate={null} onDateSelect={vi.fn()} excludeToday={true} slotMinutes={30} />)
-    expect(screen.getByText(/Excluding today/i)).toBeInTheDocument()
-    expect(screen.getByText(/Not taking bookings today/i)).toBeInTheDocument()
+    // Badge and note both contain From tomorrow — check at least one, and badge No bookings today
+    expect(screen.getAllByText(/No bookings today/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/From tomorrow/i).length).toBeGreaterThanOrEqual(1)
   })
 
   it('should highlight dates with available slots and selected state', () => {

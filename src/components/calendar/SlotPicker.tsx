@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
 import type { CalendarSlot } from '../../lib/api'
+import { TIMEZONE } from '../../lib/constants'
 
 export interface SlotPickerProps {
   date: string
@@ -9,12 +10,11 @@ export interface SlotPickerProps {
   slotMinutes?: number
 }
 
-function formatSlotTimeLocal(iso: string): string {
+function formatSlotTime(iso: string): string {
   try {
     const d = new Date(iso)
-    // Convert to visitor's local timezone per requirement (different timezone visitors)
-    // Using local time (no timeZone) so browser converts UTC ISO to local
-    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    // Eastern timezone for now per user request, configurable via TIMEZONE admin later
+    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TIMEZONE })
     return time.replace(/\s?[AP]M/i, '').trim()
   } catch {
     return iso
@@ -22,13 +22,13 @@ function formatSlotTimeLocal(iso: string): string {
 }
 
 function formatSlotInterval(start: string, end: string): string {
-  return `${formatSlotTimeLocal(start)} - ${formatSlotTimeLocal(end)}`
+  return `${formatSlotTime(start)} - ${formatSlotTime(end)}`
 }
 
 function formatDateLong(dateStr: string): string {
   try {
     const d = new Date(dateStr)
-    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TIMEZONE })
   } catch {
     return dateStr
   }
@@ -40,8 +40,10 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
     const morning: CalendarSlot[] = []
     const afternoon: CalendarSlot[] = []
     available.forEach((s) => {
-      const hour = new Date(s.start).getHours() // Local hour per timezone conversion
-      if (hour < 12) morning.push(s)
+      // Display grouping in Eastern timezone hours
+      const hour = new Date(s.start).toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: TIMEZONE }) as any
+      const h = parseInt(String(hour), 10)
+      if (h < 12) morning.push(s)
       else afternoon.push(s)
     })
     return { morning, afternoon, availableCount: available.length }
@@ -67,10 +69,10 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
       <div className="flex justify-between items-start gap-3 mb-5">
         <div>
           <div className="font-bold text-base tracking-tight">{formatDateLong(date)}</div>
-          <div className="text-xs text-gray-500 mt-1">{availableCount} available</div>
+          <div className="text-xs text-gray-500 mt-1">{availableCount} available • {slotMinutes} min • {TIMEZONE}</div>
         </div>
         {onClose && (
-          <button onClick={onClose} aria-label="Close time slots" className="w-8 h-8 rounded-full border bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm focus:outline-none focus:ring-2">
+          <button onClick={onClose} aria-label="Close time slots" className="w-9 h-9 rounded-full border bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm focus:outline-none focus:ring-2">
             ✕
           </button>
         )}
@@ -86,16 +88,16 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
           )}
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {morning.length > 0 && (
             <div>
               <div className="text-[11px] uppercase tracking-widest text-gray-400 mb-3 font-semibold">Morning</div>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-3">
                 {morning.map((slot) => (
                   <button
                     key={slot.start}
                     onClick={() => onSlotSelect(slot)}
-                    className="px-3.5 py-2.5 rounded-full border border-slate-200 bg-white text-slate-900 text-sm font-medium hover:bg-slate-900 hover:text-white hover:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-colors leading-none"
+                    className="px-3 py-2.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-medium hover:bg-slate-900 hover:text-white hover:border-slate-900 hover:z-10 relative focus:outline-none focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:ring-slate-900 transition-colors leading-none truncate"
                   >
                     {formatSlotInterval(slot.start, slot.end)}
                   </button>
@@ -106,12 +108,12 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
           {afternoon.length > 0 && (
             <div>
               <div className="text-[11px] uppercase tracking-widest text-gray-400 mb-3 font-semibold">Afternoon</div>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-3">
                 {afternoon.map((slot) => (
                   <button
                     key={slot.start}
                     onClick={() => onSlotSelect(slot)}
-                    className="px-3.5 py-2.5 rounded-full border border-slate-200 bg-white text-slate-900 text-sm font-medium hover:bg-slate-900 hover:text-white hover:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-colors leading-none"
+                    className="px-3 py-2.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-medium hover:bg-slate-900 hover:text-white hover:border-slate-900 hover:z-10 relative focus:outline-none focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:ring-slate-900 transition-colors leading-none truncate"
                   >
                     {formatSlotInterval(slot.start, slot.end)}
                   </button>

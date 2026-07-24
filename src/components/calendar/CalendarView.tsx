@@ -1,5 +1,6 @@
 import React from 'react'
 import type { CalendarSlot } from '../../lib/api'
+import { TIMEZONE, TIMEZONE_LABEL } from '../../lib/constants'
 
 export interface CalendarViewProps {
   grouped: Record<string, CalendarSlot[]>
@@ -20,12 +21,15 @@ function getNext14Range(excludeToday: boolean): { start: Date; end: Date; select
   for (let i = 0; i < 14; i++) {
     const d = new Date(start)
     d.setDate(start.getDate() + i)
-    selectableSet.add(d.toISOString().split('T')[0])
+    // Use Eastern date string for consistency with TIMEZONE
+    const etStr = d.toLocaleDateString('en-CA', { timeZone: TIMEZONE }) // en-CA gives YYYY-MM-DD
+    selectableSet.add(etStr)
   }
   return { start, end, selectableSet }
 }
 
 function getSunday(date: Date): Date {
+  // Get Sunday of the week containing date in Eastern timezone, but using local getDay for simplicity (Sun first)
   const d = new Date(date)
   const day = d.getDay()
   d.setDate(d.getDate() - day)
@@ -62,12 +66,12 @@ function getCalendarGrid(excludeToday: boolean): { weeks: Date[][]; selectableSe
 }
 
 function formatDayShort(date: Date): { dow: string; day: string; month: string; dateStr: string; isToday: boolean } {
-  const todayStr = new Date().toISOString().split('T')[0]
-  const dateStr = date.toISOString().split('T')[0]
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: TIMEZONE })
+  const dateStr = date.toLocaleDateString('en-CA', { timeZone: TIMEZONE })
   return {
-    dow: date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
-    day: date.getDate().toString(),
-    month: date.toLocaleDateString('en-US', { month: 'short' }),
+    dow: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: TIMEZONE }).toUpperCase(),
+    day: date.toLocaleDateString('en-US', { day: 'numeric', timeZone: TIMEZONE }),
+    month: date.toLocaleDateString('en-US', { month: 'short', timeZone: TIMEZONE }),
     dateStr,
     isToday: dateStr === todayStr,
   }
@@ -84,12 +88,12 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
             Your availability
           </h3>
           <p className="text-xs text-gray-500 mt-1">
-            Next 14 days selectable • {slotMinutes} min slots • Sun–Sat, max 3 weeks
+            Next 14 days selectable • {slotMinutes} min • {TIMEZONE_LABEL} • Sun–Sat, max 3 weeks
           </p>
         </div>
         {excludeToday && (
           <span className="px-4 py-2 rounded-full bg-amber-50 border border-amber-200 text-xs text-amber-700 leading-none">
-            Excluding today
+            No bookings today • From tomorrow
           </span>
         )}
       </div>
@@ -123,7 +127,7 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
                   aria-selected={isSelected}
                   className={`flex flex-col items-center justify-start py-3 sm:py-4 px-1 sm:px-2 rounded-2xl border transition-all min-h-[92px] sm:min-h-[96px]
                     ${isWeekend ? 'bg-gray-50 text-gray-400 border-gray-100' : ''}
-                    ${isOutsideSelectable ? 'bg-white text-gray-300 border-gray-100 opacity-50' : ''}
+                    ${isOutsideSelectable ? 'bg-white text-gray-300 border-gray-100 opacity-40' : ''}
                     ${!isWeekend && !isOutsideSelectable && !hasAvailability ? 'bg-gray-50 text-gray-400 border-gray-100' : ''}
                     ${hasAvailability && isSelectable && !isSelected ? 'bg-white border-slate-200 hover:border-slate-900 hover:shadow-md' : ''}
                     ${isSelected ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]' : ''}
@@ -139,6 +143,11 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
                       Today
                     </div>
                   ) : null}
+                  {isToday && excludeToday && (
+                    <div className="mt-2 px-3 py-1 rounded-full text-[9px] bg-amber-100 border border-amber-200 text-amber-700 leading-none">
+                      No bookings today
+                    </div>
+                  )}
                   <div className="mt-2">
                     {hasAvailability && selectableSet.has(dateStr) ? (
                       <span className={`inline-block px-3 py-1 rounded-full text-[10px] sm:text-[11px] leading-none ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}`}>
@@ -159,7 +168,7 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
 
       {excludeToday && (
         <div className="mt-5 text-xs text-gray-500 text-center">
-          Not taking bookings today — next availability from tomorrow.
+          Not taking bookings today — next availability from tomorrow • Times in {TIMEZONE_LABEL}
         </div>
       )}
     </div>

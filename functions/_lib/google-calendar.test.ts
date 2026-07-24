@@ -9,35 +9,37 @@ describe('google-calendar lib — slot math', () => {
     expect(parseTime('')).toBe(0)
   })
 
-  it('should compute slots for day with no busy → full working hours 09-17 30min', () => {
-    const date = new Date('2026-07-20T00:00:00Z') // Monday
+  it('should compute slots for day with no busy → full working hours 09-17 30min in Eastern (converted to UTC)', () => {
+    const date = new Date('2026-07-20T00:00:00Z') // Monday in July — EDT UTC-4, so 09:00 ET =13:00 UTC
     const slots = computeSlotsForDay(date, { start: '09:00', end: '17:00', slotMinutes: 30 }, [])
-    // 09:00-17:00 = 8 hours = 16 slots of 30min
     expect(slots.length).toBe(16)
     expect(slots[0].available).toBe(true)
-    expect(slots[0].start).toContain('09:00')
+    // 09:00 ET =13:00 UTC in July DST, ET display should be 09:00
+    expect(slots[0].start).toContain('13:00')
+    const et = new Date(slots[0].start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false, timeZone: 'America/New_York' })
+    expect(et).toContain('09:00')
   })
 
-  it('should exclude busy blocks overlapping', () => {
+  it('should exclude busy blocks overlapping (Eastern 10-11 ET =14-15 UTC)', () => {
     const date = new Date('2026-07-20T00:00:00Z')
-    const busy = [{ start: '2026-07-20T10:00:00Z', end: '2026-07-20T11:00:00Z' }]
+    // Busy 10-11 ET in July =14-15 UTC
+    const busy = [{ start: '2026-07-20T14:00:00Z', end: '2026-07-20T15:00:00Z' }]
     const slots = computeSlotsForDay(date, { start: '09:00', end: '12:00', slotMinutes: 30 }, busy as any)
-    // 09-12 = 6 slots, busy 10-11 removes 10:00 and 10:30
     const available = slots.filter((s) => s.available)
     expect(available.length).toBe(4)
-    expect(slots.find((s) => s.start.includes('10:00'))?.available).toBe(false)
-    expect(slots.find((s) => s.start.includes('10:30'))?.available).toBe(false)
-    expect(slots.find((s) => s.start.includes('09:00'))?.available).toBe(true)
+    // Slots are ET 09,09:30,10,10:30,11,11:30 → UTC 13,13:30,14,14:30,15,15:30 — busy 14-15 UTC removes 10:00 and 10:30 ET
+    expect(slots.find((s) => s.start.includes('14:00'))?.available).toBe(false)
+    expect(slots.find((s) => s.start.includes('14:30'))?.available).toBe(false)
+    expect(slots.find((s) => s.start.includes('13:00'))?.available).toBe(true)
   })
 
-  it('should handle partial overlap busy 09:15-09:45 removes 09:00 and 09:30 slots', () => {
+  it('should handle partial overlap busy 09:15-09:45 ET (13:15-13:45 UTC) removes 09:00 and 09:30 ET slots', () => {
     const date = new Date('2026-07-20T00:00:00Z')
-    const busy = [{ start: '2026-07-20T09:15:00Z', end: '2026-07-20T09:45:00Z' }]
+    const busy = [{ start: '2026-07-20T13:15:00Z', end: '2026-07-20T13:45:00Z' }]
     const slots = computeSlotsForDay(date, { start: '09:00', end: '10:00', slotMinutes: 30 }, busy as any)
     expect(slots.length).toBe(2)
-    // Any overlap → not available
-    expect(slots[0].available).toBe(false) // 09:00 overlaps 09:15-09:45
-    expect(slots[1].available).toBe(false) // 09:30 overlaps
+    expect(slots[0].available).toBe(false)
+    expect(slots[1].available).toBe(false)
   })
 
   it('should respect working days 1-5 filter (Mon-Fri) — weekend no slots', () => {
@@ -47,9 +49,10 @@ describe('google-calendar lib — slot math', () => {
     expect(filterWorkingDays([monday, saturday], [1,2,3,4,5])[0].getDay()).toBe(1)
   })
 
-  it('should handle busy all day → 0 available', () => {
+  it('should handle busy all day → 0 available (Eastern 09-17 ET =13-21 UTC)', () => {
     const date = new Date('2026-07-20T00:00:00Z')
-    const busy = [{ start: '2026-07-20T09:00:00Z', end: '2026-07-20T17:00:00Z' }]
+    // 09-17 ET in July =13-21 UTC all day busy
+    const busy = [{ start: '2026-07-20T13:00:00Z', end: '2026-07-20T21:00:00Z' }]
     const slots = computeSlotsForDay(date, { start: '09:00', end: '17:00', slotMinutes: 30 }, busy as any)
     expect(slots.filter((s) => s.available).length).toBe(0)
   })

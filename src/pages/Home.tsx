@@ -9,6 +9,7 @@ import { ImageGallery } from '../components/sections/ImageGallery'
 import { CalendarView } from '../components/calendar/CalendarView'
 import { SlotPicker } from '../components/calendar/SlotPicker'
 import { useCalendar } from '../hooks/useCalendar'
+import { TIMEZONE_LABEL } from '../lib/constants'
 import type { Section } from '../lib/api'
 
 function renderSection(section: Section) {
@@ -63,61 +64,39 @@ export function Home() {
         </div>
       )}
 
-      {/* Slice 2: Calendar Slots — real from Google Calendar FreeBusy (or stub when no creds) */}
       <section id="calendar" className="py-20 lg:py-24 bg-slate-50 border-t">
         <div className="max-w-5xl mx-auto px-6">
           <div className="max-w-3xl mx-auto text-center mb-10">
             <h2 className="text-3xl lg:text-4xl font-black tracking-tight mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>Book a meeting</h2>
             <p className="text-gray-600 leading-relaxed">
-              Choose a date and available time. {slotMinutes}-minute intro call (configurable multiple of 15), no pitch — just practical next steps.
+              Choose a date and time in {TIMEZONE_LABEL}. {slotMinutes}-minute slots, multiple of 15 configurable.
               <br />
-              <span className="text-xs text-gray-500">
-                Working hours 09:00-17:00 Mon-Fri, {slotMinutes} min slots, {excludeToday ? 'excluding today' : 'including today'} — slots exclude busy from your booking and personal calendars.
-              </span>
+              <span className="text-xs text-gray-500">Not taking bookings today — from tomorrow • Times in {TIMEZONE_LABEL}</span>
             </p>
           </div>
 
           {calLoading ? (
             <div className="max-w-md mx-auto text-center py-8">
-              <div className="animate-pulse text-sm text-gray-500">Loading calendar slots…</div>
+              <div className="animate-pulse text-sm text-gray-500">Loading calendar…</div>
             </div>
           ) : calError ? (
             <div className="max-w-md mx-auto border border-red-200 bg-red-50 rounded-xl p-4 text-center text-sm text-red-700">
-              <div>Calendar unavailable</div>
-              <div className="text-xs mt-1">{calError}</div>
+              Calendar unavailable
             </div>
           ) : (
             <div className="w-full">
               <CalendarView grouped={grouped} selectedDate={selectedDate} onDateSelect={setSelectedDate} excludeToday={excludeToday} slotMinutes={slotMinutes} />
               <div className="mt-8 w-full max-w-3xl mx-auto">
                 {selectedDate ? (
-                  <SlotPicker
-                    date={selectedDate}
-                    slots={selectedSlots}
-                    onSlotSelect={(slot) => {
-                      // Slice 3 will handle booking
-                    }}
-                    onClose={() => setSelectedDate(null)}
-                    slotMinutes={slotMinutes}
-                  />
+                  <SlotPicker date={selectedDate} slots={selectedSlots} onSlotSelect={() => {}} onClose={() => setSelectedDate(null)} slotMinutes={slotMinutes} />
                 ) : (
                   <div className="text-center text-sm text-gray-500 py-4">
-                    <div>Select a date above to see available times</div>
-                    <div className="text-xs mt-1">
-                      {excludeToday ? 'Excluding today • ' : ''}{slots.length} slots • {Object.keys(grouped).length} days
-                    </div>
+                    Select a date above to see available times in {TIMEZONE_LABEL}
                   </div>
                 )}
               </div>
             </div>
           )}
-
-          <div className="mt-8 text-center text-xs text-gray-500">
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-white border rounded-full">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              {slots.length} slots next 14 days (from {excludeToday ? 'tomorrow' : 'today'}) • Configurable
-            </span>
-          </div>
         </div>
       </section>
     </div>

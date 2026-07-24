@@ -65,14 +65,15 @@ export function filterWorkingDays(dates: Date[] | null | undefined, workingDays:
   return dates.filter((d) => workingDays.includes(d.getDay()))
 }
 
-export function getNext14Days(excludeToday: boolean = false): Date[] {
+export function getNext14Days(excludeToday: boolean = true): Date[] {
+  // Always exclude today by default per user requirement assume we dont schedule today
   const days: Date[] = []
   const start = new Date()
-  start.setUTCHours(0, 0, 0, 0)
-  if (excludeToday) start.setUTCDate(start.getUTCDate() + 1)
+  start.setHours(0, 0, 0, 0)
+  if (excludeToday) start.setDate(start.getDate() + 1)
   for (let i = 0; i < 14; i++) {
     const d = new Date(start)
-    d.setUTCDate(start.getUTCDate() + i)
+    d.setDate(start.getDate() + i)
     days.push(d)
   }
   return days
@@ -90,6 +91,35 @@ function slotsOverlap(slotStart: Date, slotEnd: Date, busyStart: Date, busyEnd: 
   return slotStart < busyEnd && slotEnd > busyStart
 }
 
+export const TIMEZONE = 'America/New_York' // Eastern, configurable in admin later via var TIMEZONE
+
+function getEasternOffsetHours(date: Date): number {
+  const testDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12, 0, 0))
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: TIMEZONE,
+      timeZoneName: 'longOffset',
+    })
+    const parts = fmt.formatToParts(testDate)
+    const tzName = parts.find((p) => p.type === 'timeZoneName')?.value || ''
+    const m = tzName.match(/GMT([+-])(\d+)(?::?(\d+))?/)
+    if (m) {
+      const sign = m[1]
+      const h = parseInt(m[2], 10)
+      return sign === '-' ? h : -h
+    }
+  } catch {}
+  const month = testDate.getUTCMonth()
+  if (month < 2 || month > 10) return 5
+  if (month > 2 && month < 10) return 4
+  return 4
+}
+
+function easternWallTimeToUtcIso(year: number, month: number, day: number, hour: number, minute: number, offsetHours: number): string {
+  const utcMillis = Date.UTC(year, month, day, hour + offsetHours, minute, 0, 0)
+  return new Date(utcMillis).toISOString()
+}
+
 export function computeSlotsForDay(
   date: Date,
   workingHours: { start: string; end: string; slotMinutes?: number; slotDurationMinutes?: number },
@@ -105,17 +135,20 @@ export function computeSlotsForDay(
   const slots: CalendarSlot[] = []
   const dateStr = toDateString(date)
 
-  // Create base date at midnight UTC for slot generation? Use date's date part, but slots in local time?
-  // For simplicity, generate slots in UTC using date's year/month/day with working hours as UTC time
-  // This matches test expectations where busy blocks are in UTC ISO Z.
+  // Eastern timezone for now per user request, configurable via TIMEZONE var later
+  // Working hours 09:00-17:00 are interpreted as Eastern wall time, converted to UTC ISO for storage
+  // e.g. 09:00 ET (EDT UTC-4) in July → 13:00 UTC ISO
   const year = date.getUTCFullYear()
   const month = date.getUTCMonth()
   const day = date.getUTCDate()
+  const offsetHours = getEasternOffsetHours(date)
 
   for (let mins = startMins; mins + slotMinutes <= endMins; mins += slotMinutes) {
     const hour = Math.floor(mins / 60)
     const minute = mins % 60
-    const slotStart = new Date(Date.UTC(year, month, day, hour, minute, 0, 0))
+    // Convert Eastern wall time to UTC ISO
+    const slotStartIso = easternWallTimeToUtcIso(year, month, day, hour, minute, offsetHours)
+    const slotStart = new Date(slotStartIso)
     const slotEnd = addMinutes(slotStart, slotMinutes)
 
     // Check overlap with any busy block
