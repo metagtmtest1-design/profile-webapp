@@ -144,7 +144,7 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
                     </div>
                   ) : null}
                   {isToday && excludeToday && (
-                    <div className="mt-2 px-3 py-1 rounded-full text-[9px] bg-amber-100 border border-amber-200 text-amber-700 leading-none">
+                    <div className="mt-2 px-4 py-1.5 rounded-full text-[10px] font-medium bg-amber-100 border border-amber-200 text-amber-700 leading-none">
                       No bookings today
                     </div>
                   )}

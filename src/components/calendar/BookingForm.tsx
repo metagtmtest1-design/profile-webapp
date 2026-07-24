@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import type { CalendarSlot } from '../../lib/api'
 import { createBooking } from '../../lib/api'
+import { generateIcsContent, downloadIcsFile } from '../../lib/ics'
 
 export interface BookingFormProps {
   slot: CalendarSlot
@@ -86,24 +87,39 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   }
 
   if (success) {
+    const handleDownloadIcs = () => {
+      const ics = generateIcsContent({
+        title: `Meeting — ${firstName} ${lastName}`,
+        description: `${purpose || 'Intro call'}\nMeet: ${success.meetLink}\nCancel: ${success.cancelUrl}`,
+        location: success.meetLink,
+        start: slot.start,
+        end: slot.end,
+        meetLink: success.meetLink,
+        attendee: email,
+      })
+      downloadIcsFile(ics, `meeting-${slot.date}.ics`)
+    }
+
     return (
       <div className="card rounded-2xl p-6 bg-green-50 border-green-300">
         <h3 className="font-bold text-lg mb-2">Meeting Confirmed ✅</h3>
         <p className="text-sm mb-2">Date: {success.dateTime}</p>
-        <p className="text-sm mb-2">
-          Meet link: <a href={success.meetLink} className="underline" target="_blank" rel="noopener noreferrer">{success.meetLink}</a>
-        </p>
         <p className="text-sm mb-3">
-          Cancel: <a href={success.cancelUrl} className="underline" target="_blank" rel="noopener noreferrer">{success.cancelUrl}</a> — click to cancel and free slot
+          Meet: <a href={success.meetLink} className="underline" target="_blank" rel="noopener noreferrer">{success.meetLink}</a>
         </p>
-        <button onClick={() => navigator.clipboard.writeText(success.meetLink)} className="px-4 py-2 bg-black text-white rounded-lg text-xs mr-2">
-          Copy Meet link
-        </button>
-        <button onClick={() => navigator.clipboard.writeText(success.cancelUrl)} className="px-4 py-2 border rounded-lg text-xs">
-          Copy Cancel URL
-        </button>
+        <div className="flex flex-wrap gap-3 mt-4">
+          <button onClick={handleDownloadIcs} className="px-6 py-3 bg-slate-900 text-white rounded-full text-sm font-semibold hover:bg-black leading-none">
+            Download invite (.ics)
+          </button>
+          <a href={success.cancelUrl} className="px-6 py-3 rounded-full border border-red-200 bg-white text-red-700 text-sm font-semibold hover:bg-red-50 leading-none inline-flex items-center justify-center">
+            Cancel meeting
+          </a>
+          <button onClick={() => navigator.clipboard.writeText(success.meetLink)} className="px-6 py-3 bg-black text-white rounded-full text-sm font-medium leading-none">
+            Copy Meet link
+          </button>
+        </div>
         {onCancel && (
-          <button onClick={onCancel} className="mt-4 px-4 py-2 border rounded-full text-xs block">
+          <button onClick={onCancel} className="mt-6 px-6 py-3 border rounded-full text-sm font-medium hover:bg-gray-50 leading-none">
             Close
           </button>
         )}

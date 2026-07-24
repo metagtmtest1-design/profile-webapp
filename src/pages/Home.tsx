@@ -11,6 +11,7 @@ import { SlotPicker } from '../components/calendar/SlotPicker'
 import { BookingForm } from '../components/calendar/BookingForm'
 import { useCalendar } from '../hooks/useCalendar'
 import { TIMEZONE_LABEL } from '../lib/constants'
+import { generateIcsContent, downloadIcsFile } from '../lib/ics'
 import type { Section } from '../lib/api'
 
 function renderSection(section: Section) {
@@ -93,9 +94,6 @@ export function Home() {
                 {selectedDate && !selectedSlot && !bookingResult && (
                   <SlotPicker date={selectedDate} slots={selectedSlots} onSlotSelect={(slot) => setSelectedSlot(slot)} onClose={() => { setSelectedDate(null); setSelectedSlot(null) }} slotMinutes={slotMinutes} />
                 )}
-                {selectedDate && !selectedDate && (
-                  <div className="text-center text-sm text-gray-500 py-4">Select a date above to see available times in {TIMEZONE_LABEL}</div>
-                )}
                 {!selectedDate && !bookingResult && (
                   <div className="text-center text-sm text-gray-500 py-4">
                     Select a date from next 14 days to see available times in {TIMEZONE_LABEL}
@@ -116,11 +114,18 @@ export function Home() {
                   <div className="card rounded-2xl p-6 bg-green-50 border-green-300 text-center">
                     <h3 className="font-black text-xl mb-3">Meeting Confirmed ✅</h3>
                     <p className="text-sm mb-2">{bookingResult.dateTime}</p>
-                    <p className="text-sm mb-2">Meet: <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="underline">{bookingResult.meetLink}</a></p>
-                    <p className="text-sm mb-4">Cancel: <a href={bookingResult.cancelUrl} target="_blank" rel="noopener noreferrer" className="underline">{bookingResult.cancelUrl}</a></p>
-                    <div className="flex gap-3 justify-center">
-                      <button onClick={() => { setSelectedDate(null); setSelectedSlot(null); setBookingResult(null) }} className="px-5 py-2 bg-black text-white rounded-full text-sm">Book another</button>
-                      <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="px-5 py-2 bg-white border rounded-full text-sm">Open Meet →</a>
+                    <p className="text-sm mb-4">Meet: <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="underline">{bookingResult.meetLink}</a></p>
+                    <div className="flex gap-3 justify-center flex-wrap">
+                      <button onClick={() => { const ics = generateIcsContent({ title: `Meeting — ${bookingResult.dateTime}`, description: `Meet: ${bookingResult.meetLink}\nCancel: ${bookingResult.cancelUrl}`, location: bookingResult.meetLink, start: selectedSlot?.start || new Date().toISOString(), end: selectedSlot?.end || new Date().toISOString(), meetLink: bookingResult.meetLink }); downloadIcsFile(ics, `meeting-${selectedDate}.ics`); }} className="px-6 py-3 bg-slate-900 text-white rounded-full text-sm font-semibold hover:bg-black leading-none">
+                        Download invite (.ics)
+                      </button>
+                      <a href={bookingResult.cancelUrl} className="px-6 py-3 rounded-full border border-red-200 bg-white text-red-700 text-sm font-semibold hover:bg-red-50 leading-none inline-flex items-center justify-center">
+                        Cancel meeting
+                      </a>
+                    </div>
+                    <div className="flex gap-3 justify-center flex-wrap mt-4">
+                      <button onClick={() => { setSelectedDate(null); setSelectedSlot(null); setBookingResult(null) }} className="px-6 py-3 bg-black text-white rounded-full text-sm font-semibold leading-none">Book another</button>
+                      <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="px-6 py-3 bg-white border border-slate-200 rounded-full text-sm font-semibold leading-none inline-flex items-center justify-center">Open Meet →</a>
                     </div>
                   </div>
                 )}

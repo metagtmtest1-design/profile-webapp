@@ -92,6 +92,7 @@ body {
 .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
 .px-3\.5 { padding-left: 0.875rem; padding-right: 0.875rem; }
 .px-4 { padding-left: 1rem; padding-right: 1rem; }
+.px-5 { padding-left: 1.25rem; padding-right: 1.25rem; }
 .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
 .px-7 { padding-left: 1.75rem; padding-right: 1.75rem; }
 .px-8 { padding-left: 2rem; padding-right: 2rem; }
@@ -312,3 +313,5 @@ nav {
   box-shadow: 0 1px 0 var(--border);
 }
 section { scroll-margin-top: 72px; }
+
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

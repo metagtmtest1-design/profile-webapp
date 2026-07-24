@@ -81,4 +81,73 @@ describe('BookingForm — first_name, last_name, email, phone, purpose + Turnsti
     expect(document.body.innerHTML).not.toContain('4b320f7127d04517322eed13a69ecb276f4f371ac7684a6c8d10a5c03b5bf4a0')
     expect(document.body.innerHTML).not.toContain('33b92d647e20775bc5781b918d84fb78a92dc69e9389a9a65de137523765847a')
   })
+
+  it('should provide download button for calendar invite (.ics) after success', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    vi.mocked(createBooking).mockResolvedValue({
+      meetLink: 'https://meet.google.com/abc-defg-hij',
+      dateTime: '2026-07-30 09:00 AM ET',
+      cancelUrl: 'https://alpha.profile-webapp.pages.dev/api/cancel/token123',
+    } as any)
+
+    render(<BookingForm slot={slot} onSuccess={vi.fn()} />)
+
+    // Fill form using fireEvent to trigger React onChange
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Jane' } })
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Doe' } })
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'jane@example.com' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /book meeting/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Meeting Confirmed/i)).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: /Download invite.*\.ics/i })).toBeInTheDocument()
+  })
+
+  it('should embed cancel link in Cancel meeting button, not as raw link text', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    vi.mocked(createBooking).mockResolvedValue({
+      meetLink: 'https://meet.google.com/abc-defg-hij',
+      dateTime: '2026-07-30 09:00 AM ET',
+      cancelUrl: 'https://alpha.profile-webapp.pages.dev/api/cancel/token123',
+    } as any)
+
+    render(<BookingForm slot={slot} onSuccess={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Jane' } })
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Doe' } })
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'jane@example.com' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /book meeting/i }))
+
+    await waitFor(() => screen.getByText(/Meeting Confirmed/i))
+    const cancelBtn = screen.getByRole('link', { name: /Cancel meeting/i })
+    expect(cancelBtn).toBeInTheDocument()
+    expect(cancelBtn.getAttribute('href')).toContain('/api/cancel/')
+    // Old behavior Cancel: <a>fullURL</a> should not exist
+    expect(document.body.innerHTML).not.toMatch(/Cancel:.*https:\/\/alpha\.profile-webapp\.pages\.dev\/api\/cancel\/token123/)
+  })
+
+  it('should have Book another and Open Meet buttons with more padding (not px-5 py-2 text close to border)', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    vi.mocked(createBooking).mockResolvedValue({
+      meetLink: 'https://meet.google.com/abc-defg-hij',
+      dateTime: '2026-07-30 09:00 AM ET',
+      cancelUrl: 'https://alpha.profile-webapp.pages.dev/api/cancel/token123',
+    } as any)
+
+    render(<BookingForm slot={slot} onSuccess={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Jane' } })
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Doe' } })
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'jane@example.com' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /book meeting/i }))
+
+    await waitFor(() => screen.getByText(/Meeting Confirmed/i))
+    const buttons = screen.getAllByRole('button')
+    const hasPadding = buttons.some((b) => b.className.includes('px-6') && b.className.includes('py-3'))
+    expect(hasPadding).toBe(true)
+  })
 })
