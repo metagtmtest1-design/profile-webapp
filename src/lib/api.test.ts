@@ -121,3 +121,37 @@ describe('api client - fetchContent', () => {
     await expect(fetchContent('home')).rejects.toThrow(/Network/)
   })
 })
+
+describe('api client - fetchCalendarSlots', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn()))
+  afterEach(() => vi.restoreAllMocks())
+
+  it('should fetch /api/calendar/slots?weeks=2 and parse slots', async () => {
+    const { fetchCalendarSlots } = await import('./api')
+    const mock = {
+      slots: [
+        { date: '2026-07-20', start: '2026-07-20T09:00:00Z', end: '2026-07-20T09:30:00Z', available: true },
+      ],
+      weeks: 2,
+      source: 'stub',
+    }
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => mock } as any)
+    const result = await fetchCalendarSlots(2)
+    expect(result.length).toBe(1)
+    expect(fetch).toHaveBeenCalledWith('/api/calendar/slots?weeks=2', expect.anything())
+  })
+
+  it('should handle weeks param', async () => {
+    const { fetchCalendarSlots } = await import('./api')
+    const mock = { slots: [], weeks: 1, source: 'stub' }
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => mock } as any)
+    await fetchCalendarSlots(1)
+    expect(fetch).toHaveBeenCalledWith('/api/calendar/slots?weeks=1', expect.anything())
+  })
+
+  it('should throw on 500 for calendar slots', async () => {
+    const { fetchCalendarSlots } = await import('./api')
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: 'fail' }) } as any)
+    await expect(fetchCalendarSlots(2)).rejects.toThrow(/500/)
+  })
+})
