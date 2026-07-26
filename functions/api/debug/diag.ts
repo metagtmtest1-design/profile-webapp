@@ -1,4 +1,4 @@
-import { getEnvironment, getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret, getOAuthClientId, getOAuthClientSecret, getOAuthRefreshToken, hasOAuthConfig } from '../../_lib/env'
+import { getEnvironment, getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret, getOAuthClientId, getOAuthClientSecret, getOAuthRefreshToken, hasOAuthConfig, getMaxBookingsPerWeek, isBookingLimitEnabled } from '../../_lib/env'
 import { getDiagInfo } from '../../_lib/google-calendar'
 
 export interface Env {
@@ -108,6 +108,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
         GOOGLE_OAUTH_CLIENT_SECRET: !!(env as any)?.GOOGLE_OAUTH_CLIENT_SECRET,
         GOOGLE_OAUTH_REFRESH_TOKEN: !!(env as any)?.GOOGLE_OAUTH_REFRESH_TOKEN,
       },
+    },
+    bookingLimit: {
+      maxPerWeek: getMaxBookingsPerWeek(env),
+      enabled: isBookingLimitEnabled(env),
+      rawMax: (env as any)?.BOOKING_MAX_PER_WEEK || (env as any)?.MAX_BOOKINGS_PER_WEEK || 'not-set (default 3)',
+      rawEnabled: (env as any)?.BOOKING_LIMIT_ENABLED || 'not-set (auto from max>0)',
+      howToDisable: 'Set BOOKING_MAX_PER_WEEK=0 or BOOKING_LIMIT_ENABLED=false in .dev.vars (local) or Encrypted Secrets Preview/Prod (Cloudflare Dashboard) to turn off max per week',
     },
     site: {
       siteUrl: env?.SITE_URL || 'not-set',
