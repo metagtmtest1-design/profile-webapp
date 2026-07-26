@@ -138,7 +138,8 @@ describe('api client - fetchCalendarSlots', () => {
     vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => mock } as any)
     const result = await fetchCalendarSlots(2)
     expect(result.length).toBe(1)
-    expect(fetch).toHaveBeenCalledWith('/api/calendar/slots?weeks=2', expect.anything())
+    // Now includes cache bust _t and cache no-store
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/calendar/slots?weeks=2'), expect.anything())
   })
 
   it('should handle weeks param', async () => {
@@ -146,7 +147,7 @@ describe('api client - fetchCalendarSlots', () => {
     const mock = { slots: [], weeks: 1, source: 'stub' }
     vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => mock } as any)
     await fetchCalendarSlots(1)
-    expect(fetch).toHaveBeenCalledWith('/api/calendar/slots?weeks=1', expect.anything())
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/calendar/slots?weeks=1'), expect.anything())
   })
 
   it('should throw on 500 for calendar slots', async () => {
