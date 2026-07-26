@@ -489,13 +489,14 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
     if (!accessToken) throw new Error('No access token')
 
     // Create event with Meet link auto via conferenceData
+    // NOTE: Service accounts cannot invite attendees without Domain-Wide Delegation — causes 403 forbiddenForServiceAccounts
+    // Fix: try with attendees first, if that fails with forbiddenForServiceAccounts, retry without attendees
     console.log(`!!! GCAL_EVENT_CREATE_START summary=Meeting with ${params.firstName} start=${params.slot.start} end=${params.slot.end} bookingId=${bookingId.slice(0, 8)}...`)
-    const eventPayload = {
+    const basePayload = {
       summary: `Meeting with ${params.firstName} ${params.lastName}`,
       description: `${params.purpose || 'Intro call'}\n\nContact: ${params.email} ${params.phone || ''}\n\nCancel: ${siteUrl}/api/cancel/${params.cancelToken}`,
       start: { dateTime: params.slot.start, timeZone: TIMEZONE },
       end: { dateTime: params.slot.end, timeZone: TIMEZONE },
-      attendees: [{ email: params.email, displayName: `${params.firstName} ${params.lastName}` }],
       conferenceData: {
         createRequest: {
           requestId: params.cancelToken,
@@ -504,21 +505,55 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
       },
     }
 
-    const createRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events?conferenceDataVersion=1&sendUpdates=all`, {
+    const withAttendeesPayload = {
+      ...basePayload,
+      attendees: [{ email: params.email, displayName: `${params.firstName} ${params.lastName}` }],
+    }
+
+    let createRes: Response | null = null
+    let eventPayloadUsed: any = withAttendeesPayload
+
+    // First attempt — with attendees (would send Google invite if DWD allowed)
+    console.log('!!! GCAL_EVENT_CREATE_ATTEMPT_1_WITH_ATTENDEES')
+    createRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events?conferenceDataVersion=1&sendUpdates=all`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(eventPayload),
+      body: JSON.stringify(withAttendeesPayload),
     })
-    console.log(`!!! GCAL_EVENT_CREATE_RESPONSE status=${createRes.status} ok=${createRes.ok}`)
+    console.log(`!!! GCAL_EVENT_CREATE_RESPONSE_1 status=${createRes.status} ok=${createRes.ok}`)
 
     if (!createRes.ok) {
       const txt = await createRes.text().catch(() => '')
-      console.log(`!!! GCAL_EVENT_CREATE_FAILED status=${createRes.status} body=${txt.slice(0, 500)}`)
-      throw new Error(`Create event failed ${createRes.status} ${txt}`)
+      console.log(`!!! GCAL_EVENT_CREATE_FAILED_1 status=${createRes.status} body=${txt.slice(0, 800)}`)
+      // If forbiddenForServiceAccounts — retry without attendees (works for personal Gmail & group calendars without DWD)
+      if (txt.includes('forbiddenForServiceAccounts') || txt.includes('Service accounts cannot invite attendees')) {
+        console.log('!!! GCAL_CREATE_RETRY_WITHOUT_ATTENDEES reason=forbiddenForServiceAccounts — DWD not configured, creating event without attendees and relying on Resend email for confirmation')
+        eventPayloadUsed = basePayload // no attendees
+        createRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events?conferenceDataVersion=1&sendUpdates=all`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(basePayload),
+        })
+        console.log(`!!! GCAL_EVENT_CREATE_RESPONSE_2_NO_ATTENDEES status=${createRes.status} ok=${createRes.ok}`)
+        if (!createRes.ok) {
+          const txt2 = await createRes.text().catch(() => '')
+          console.log(`!!! GCAL_EVENT_CREATE_FAILED_2 status=${createRes.status} body=${txt2.slice(0, 800)}`)
+          throw new Error(`Create event failed ${createRes.status} ${txt2} (retry without attendees also failed)`)
+        } else {
+          console.log('!!! GCAL_CREATE_RETRY_SUCCESS without attendees — real Meet link will be generated, Resend will handle email invite')
+        }
+      } else {
+        throw new Error(`Create event failed ${createRes.status} ${txt}`)
+      }
     }
+
+    if (!createRes) throw new Error('No response from Google Calendar')
 
     const created = (await createRes.json()) as any
     const meetLink = created.conferenceData?.entryPoints?.[0]?.uri || created.hangoutLink || `https://meet.google.com/fake-${params.cancelToken.slice(0,8)}`
