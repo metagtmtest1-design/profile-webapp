@@ -238,17 +238,35 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const expectedLive = !!getGcalServiceKey(env) && !!getBookingCalendarId(env) && env?.ENVIRONMENT !== 'local' && env?.ENVIRONMENT !== 'test' && env?.STUB !== 'true'
     if (expectedLive && source === 'stub') {
       console.error(`!!! GCAL_EXPECTED_LIVE_BUT_GOT_STUB diag=${JSON.stringify(diagBefore)} gcalError=${gcalError}`)
-      // Don't fail booking entirely, but include error; however for alpha/prod we want client to know if Meet failed
-      // If error indicates missing permission (403) or invalid calendar ID, we still return 200 with gcalError so UI can show warning
+      console.log('!!! BOOKING_ABORT_DB_INSERT real Google required but got stub — returning 502 per requirement only record after Google 200')
+      // Per requirement: only record scheduled events in DB after Google confirms 200
+      // If Google failed in alpha/prod expected live, do NOT insert booking, return error
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to create calendar event',
+          details: gcalError,
+          source,
+          diag: diagBefore,
+          guidance:
+            gcalError?.includes('forbiddenForServiceAccounts') || gcalError?.includes('attendees')
+              ? 'Service accounts cannot invite attendees without Domain-Wide Delegation — code now retries without attendees, but if still fails check Invalid conference type may need bare event'
+              : gcalError?.includes('Invalid conference type')
+                ? 'Group calendar may not support hangoutsMeet via SA without DWD — bare event created but Meet missing. Check /api/debug/check-calendar?write=true'
+                : 'Check /api/debug/diag and /api/debug/check-calendar?write=true for calendar permission and SA sharing',
+        }),
+        { status: 502, headers }
+      )
     } else if (expectedLive) {
-      console.log('!!! GCAL_LIVE_SUCCESS real Meet link generated')
+      console.log('!!! GCAL_LIVE_SUCCESS real calendar event confirmed 200 — proceeding to DB insert per requirement')
+    } else {
+      console.log(`!!! GCAL_STUB_OK env=${env?.ENVIRONMENT} source=${source} — allowed for local/test, inserting stub booking for TDD`)
     }
 
-    // Insert booking
+    // Insert booking — ONLY after Google confirms 200 (source live) or in local/test stub allowed for TDD
     console.log('!!! BOOKING_INSERT_START')
     try {
       const bookingId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
-      console.log(`!!! BOOKING_INSERT id=${bookingId} contactId=${contactId} eventId=${calendarEventId}`)
+      console.log(`!!! BOOKING_INSERT id=${bookingId} contactId=${contactId} eventId=${calendarEventId} source=${source}`)
       const insertBookingStmt = db.prepare('INSERT INTO bookings (id, contact_id, calendar_event_id, purpose, cancel_token, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime("now"))')
       await insertBookingStmt.bind(bookingId, contactId!, calendarEventId, purpose || null, cancelToken, 'confirmed').run()
       console.log('!!! BOOKING_INSERT_OK')
