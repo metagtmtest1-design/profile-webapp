@@ -54,6 +54,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   try {
+    console.log('!!! BOOKING_REQUEST_RECEIVED')
     const body = (await request.json()) as any
     const firstName = String(body.firstName || body.first_name || '').trim()
     const lastName = String(body.lastName || body.last_name || '').trim()
@@ -63,8 +64,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const slot = body.slot as { date?: string; start: string; end: string; available?: boolean } | undefined
     const turnstileToken = String(body.turnstileToken || body.turnstile_token || '').trim()
 
+    console.log(`!!! BOOKING_VALIDATION_START email=${email} slot=${slot?.start} confirmIntent=${body.confirmIntent}`)
+
     // Validation per tests: required fields first_name, last_name, email, slot
     if (!firstName || !lastName || !email || !slot?.start || !slot?.end) {
+      console.log('!!! BOOKING_VALIDATION_FAILED missing required fields')
       return new Response(JSON.stringify({ error: 'Missing required fields: firstName, lastName, email, slot.start, slot.end' }), {
         status: 400,
         headers,
@@ -72,10 +76,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     if (!isValidEmail(email)) {
+      console.log(`!!! BOOKING_VALIDATION_FAILED invalid email ${email}`)
       return new Response(JSON.stringify({ error: 'Invalid email format' }), { status: 400, headers })
     }
 
     // Turnstile verification — supports alias resolution
+    console.log(`!!! TURNSTILE_VERIFY_START tokenPresent=${!!turnstileToken} secretPresent=${!!getTurnstileSecret(env) || !!env?.TURNSTILE_SECRET_KEY} env=${env?.ENVIRONMENT}`)
     const resolvedTurnstileSecret = getTurnstileSecret(env) || env?.TURNSTILE_SECRET_KEY || ''
     const turnstileResult = await verifyTurnstile(turnstileToken, resolvedTurnstileSecret, {
       ENVIRONMENT: env?.ENVIRONMENT,
@@ -83,8 +89,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       REMOTE_IP: (request as any).headers?.get?.('CF-Connecting-IP') || '',
       ...env, // pass full env for alias resolution
     })
+    console.log(`!!! TURNSTILE_VERIFY_RESULT ok=${turnstileResult.ok} source=${turnstileResult.source} error=${turnstileResult.error || 'none'}`)
 
     if (!turnstileResult.ok) {
+      console.log(`!!! TURNSTILE_VERIFY_FAILED details=${turnstileResult.error}`)
       return new Response(JSON.stringify({ error: 'Turnstile verification failed', details: turnstileResult.error, source: turnstileResult.source }), {
         status: 400,
         headers,
@@ -93,17 +101,22 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     const db = env?.DB
     if (!db) {
+      console.log('!!! BOOKING_DB_MISSING')
       return new Response(JSON.stringify({ error: 'DB not configured' }), { status: 500, headers })
     }
 
     // Rate limit 3/email/week + same email this week warning
     // Count bookings for this email in current week (Monday to Sunday)
+    console.log('!!! BOOKING_RATE_LIMIT_CHECK_START')
     try {
       const weekStart = getWeekStart(new Date()).toISOString()
+      console.log(`!!! BOOKING_RATE_LIMIT weekStart=${weekStart}`)
       const countStmt = db.prepare('SELECT COUNT(*) as count FROM bookings WHERE contact_id IN (SELECT id FROM contacts WHERE email = ?1) AND created_at >= ?2')
       const countResult = await countStmt.bind(email, weekStart).first() as any
       const count = countResult?.count ?? 0
+      console.log(`!!! BOOKING_RATE_LIMIT count=${count} email=${email}`)
       if (count >= 3) {
+        console.log(`!!! BOOKING_RATE_LIMIT_EXCEEDED count=${count}`)
         return new Response(JSON.stringify({ error: 'Rate limit exceeded: 3 bookings per email per week', count }), {
           status: 429,
           headers,
@@ -113,6 +126,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       if (count >= 1) {
         // If body does not have confirmIntent flag, return warning
         if (!body.confirmIntent && !body.confirm_intent) {
+          console.log(`!!! BOOKING_DUPLICATE_WARNING count=${count} need confirmIntent`)
           return new Response(
             JSON.stringify({
               warning: 'You already booked this week, confirm intent?',
@@ -122,21 +136,31 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
             }),
             { status: 200, headers }
           )
+        } else {
+          console.log(`!!! BOOKING_DUPLICATE_CONFIRMED count=${count} confirmIntent=${body.confirmIntent}`)
         }
+      } else {
+        console.log('!!! BOOKING_RATE_LIMIT_OK no prior bookings this week')
       }
-    } catch (e) {
+    } catch (e: any) {
+      console.log(`!!! BOOKING_RATE_LIMIT_CHECK_ERROR ${e?.message}`)
       // Ignore count errors for stub
     }
 
     // Past slot check — race guard simple
     const slotStartDate = new Date(slot.start)
+    console.log(`!!! BOOKING_SLOT_CHECK_START slotStart=${slot.start} now=${new Date().toISOString()}`)
     if (isNaN(slotStartDate.getTime()) || slotStartDate.getTime() < Date.now()) {
+      console.log('!!! BOOKING_SLOT_CHECK_FAILED past slot')
       return new Response(JSON.stringify({ error: 'Slot no longer available - in past' }), { status: 409, headers })
     }
+    console.log('!!! BOOKING_SLOT_CHECK_OK future slot')
 
     // Re-verify slot via FreeBusy (race guard) — if busyBlocks contains overlapping, 409
+    console.log('!!! FREEBUSY_RACE_GUARD_START')
     try {
-      const { busyBlocks, source } = await getFreeBusy(env)
+      const { busyBlocks, source, error: fbError } = await getFreeBusy(env)
+      console.log(`!!! FREEBUSY_RACE_GUARD_RESULT source=${source} busyCount=${busyBlocks.length} error=${fbError || 'none'}`)
       if (source === 'live' && busyBlocks.length > 0) {
         const slotEndDate = new Date(slot.end)
         const hasOverlap = busyBlocks.some((busy: any) => {
@@ -144,19 +168,26 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           const be = new Date(busy.end)
           return slotStartDate < be && slotEndDate > bs
         })
+        console.log(`!!! FREEBUSY_OVERLAP_CHECK hasOverlap=${hasOverlap}`)
         if (hasOverlap) {
+          console.log('!!! FREEBUSY_OVERLAP_DETECTED slot busy')
           return new Response(JSON.stringify({ error: 'Slot no longer available - busy' }), { status: 409, headers })
         }
       }
-    } catch {}
+      console.log('!!! FREEBUSY_RACE_GUARD_OK slot free')
+    } catch (e: any) {
+      console.log(`!!! FREEBUSY_RACE_GUARD_ERROR ${e?.message}`)
+    }
 
     // Upsert contact — email UNIQUE
+    console.log('!!! CONTACT_UPSERT_START')
     let contactId: string
     try {
       const existingStmt = db.prepare('SELECT id FROM contacts WHERE email = ?1')
       const existing = (await existingStmt.bind(email).first()) as any
       if (existing?.id) {
         contactId = existing.id
+        console.log(`!!! CONTACT_EXISTS id=${contactId} updating`)
         // Update first/last/phone
         const updateStmt = db.prepare('UPDATE contacts SET first_name = ?1, last_name = ?2, phone = ?3, updated_at = datetime("now") WHERE id = ?4')
         await updateStmt.bind(firstName, lastName, phone || null, contactId).run().catch(() => {})
@@ -164,10 +195,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         // Insert new contact
         const newId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
         contactId = newId
+        console.log(`!!! CONTACT_NEW id=${contactId}`)
         const insertStmt = db.prepare('INSERT INTO contacts (id, first_name, last_name, email, phone, created_at) VALUES (?1, ?2, ?3, ?4, ?5, datetime("now"))')
         await insertStmt.bind(newId, firstName, lastName, email, phone || null).run()
       }
+      console.log(`!!! CONTACT_UPSERT_OK contactId=${contactId}`)
     } catch (e: any) {
+      console.log(`!!! CONTACT_UPSERT_ERROR ${e?.message} fallback to alternative insert`)
       // Fallback for mock D1 in tests that uses different SQL patterns
       try {
         // Try alternative insert pattern for tests
@@ -182,10 +216,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     // Generate cancel_token UUIDv4 — 122 bits entropy, not guessable, one-time use
     const cancelToken = crypto.randomUUID()
+    console.log(`!!! CANCEL_TOKEN_GENERATED token=${cancelToken}`)
 
     // Create GCal event with Meet link auto — use alias-aware env
     const siteUrl = env?.SITE_URL || 'https://profile-webapp.pages.dev'
     const diagBefore = getDiagInfo(env)
+    console.log(`!!! GCAL_CREATE_START siteUrl=${siteUrl} diag=${JSON.stringify(diagBefore)} slot=${slot.start}->${slot.end}`)
     const { calendarEventId, meetLink, source, error: gcalError } = await createBookingEvent(env, {
       firstName,
       lastName,
@@ -196,21 +232,28 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       cancelToken,
       siteUrl,
     })
+    console.log(`!!! GCAL_CREATE_RESULT source=${source} eventId=${calendarEventId} meetLink=${meetLink} error=${gcalError || 'none'}`)
 
     // If we are in alpha/prod and expected live but got stub, surface error details so alpha diagnosis knows
     const expectedLive = !!getGcalServiceKey(env) && !!getBookingCalendarId(env) && env?.ENVIRONMENT !== 'local' && env?.ENVIRONMENT !== 'test' && env?.STUB !== 'true'
     if (expectedLive && source === 'stub') {
-      console.error(`[Booking] Expected live Meet link but got stub — diag: ${JSON.stringify(diagBefore)}, gcalError: ${gcalError}`)
+      console.error(`!!! GCAL_EXPECTED_LIVE_BUT_GOT_STUB diag=${JSON.stringify(diagBefore)} gcalError=${gcalError}`)
       // Don't fail booking entirely, but include error; however for alpha/prod we want client to know if Meet failed
       // If error indicates missing permission (403) or invalid calendar ID, we still return 200 with gcalError so UI can show warning
+    } else if (expectedLive) {
+      console.log('!!! GCAL_LIVE_SUCCESS real Meet link generated')
     }
 
     // Insert booking
+    console.log('!!! BOOKING_INSERT_START')
     try {
       const bookingId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+      console.log(`!!! BOOKING_INSERT id=${bookingId} contactId=${contactId} eventId=${calendarEventId}`)
       const insertBookingStmt = db.prepare('INSERT INTO bookings (id, contact_id, calendar_event_id, purpose, cancel_token, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime("now"))')
       await insertBookingStmt.bind(bookingId, contactId!, calendarEventId, purpose || null, cancelToken, 'confirmed').run()
+      console.log('!!! BOOKING_INSERT_OK')
     } catch (e: any) {
+      console.log(`!!! BOOKING_INSERT_ERROR ${e?.message} fallback`)
       // Fallback for test D1 that may have different prepare shapes
       try {
         const stmt = db.prepare('INSERT INTO bookings (id, contact_id, calendar_event_id, purpose, cancel_token, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
@@ -232,6 +275,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     })
 
     const cancelUrl = `${siteUrl}/api/cancel/${cancelToken}`
+    console.log(`!!! EMAIL_SEND_START to=${email} dateTime=${dateTimeEt} meetLink=${meetLink} cancelUrl=${cancelUrl}`)
 
     const emailResult = await sendConfirmationEmail({
       to: email,
@@ -249,9 +293,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         ...env,
       },
     })
+    console.log(`!!! EMAIL_SEND_RESULT success=${emailResult.success} source=${emailResult.source} id=${emailResult.id || 'none'} error=${emailResult.error || 'none'}`)
 
     // Invalidate calendar cache — for Workers Cache, we can't directly purge, but we return header to indicate invalidation needed
 
+    console.log(`!!! BOOKING_SUCCESS meetLink=${meetLink} source=${source} contactId=${contactId}`)
     return new Response(
       JSON.stringify({
         meetLink,
@@ -285,6 +331,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
     )
   } catch (e: any) {
+    console.log(`!!! BOOKING_FAILED error=${e?.message || String(e)} stack=${e?.stack?.slice(0, 300) || 'none'}`)
     return new Response(JSON.stringify({ error: 'Failed to create booking', message: e?.message || String(e) }), {
       status: 500,
       headers,
