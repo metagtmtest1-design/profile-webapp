@@ -1,4 +1,4 @@
-import { getEnvironment, getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret } from '../../_lib/env'
+import { getEnvironment, getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret, getOAuthClientId, getOAuthClientSecret, getOAuthRefreshToken, hasOAuthConfig } from '../../_lib/env'
 import { getDiagInfo } from '../../_lib/google-calendar'
 
 export interface Env {
@@ -19,6 +19,12 @@ export interface Env {
   TURNSTILE_SITE_KEY?: string
   EMAIL_FROM?: string
   FROM?: string
+  GOOGLE_OAUTH_CLIENT_ID?: string
+  GOOGLE_OAUTH_CLIENT_SECRET?: string
+  GOOGLE_OAUTH_REFRESH_TOKEN?: string
+  OAUTH_CLIENT_ID?: string
+  OAUTH_CLIENT_SECRET?: string
+  OAUTH_REFRESH_TOKEN?: string
   [key: string]: any
 }
 
@@ -87,6 +93,22 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
         TURNSTILE_SECRET: !!(env as any)?.TURNSTILE_SECRET,
       },
     },
+    oauth: {
+      clientIdConfigured: !!getOAuthClientId(env),
+      clientSecretConfigured: !!getOAuthClientSecret(env),
+      refreshTokenConfigured: !!getOAuthRefreshToken(env),
+      hasFullConfig: hasOAuthConfig(env),
+      aliasesChecked: {
+        clientId: ['GOOGLE_OAUTH_CLIENT_ID', 'OAUTH_CLIENT_ID'],
+        clientSecret: ['GOOGLE_OAUTH_CLIENT_SECRET', 'OAUTH_CLIENT_SECRET'],
+        refreshToken: ['GOOGLE_OAUTH_REFRESH_TOKEN', 'OAUTH_REFRESH_TOKEN'],
+      },
+      presentVia: {
+        GOOGLE_OAUTH_CLIENT_ID: !!(env as any)?.GOOGLE_OAUTH_CLIENT_ID,
+        GOOGLE_OAUTH_CLIENT_SECRET: !!(env as any)?.GOOGLE_OAUTH_CLIENT_SECRET,
+        GOOGLE_OAUTH_REFRESH_TOKEN: !!(env as any)?.GOOGLE_OAUTH_REFRESH_TOKEN,
+      },
+    },
     site: {
       siteUrl: env?.SITE_URL || 'not-set',
     },
@@ -98,6 +120,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
         'Calendar permission not Make changes and see all event details — Share booking calendar with SA as Make changes and see all event details (not free/busy)',
         'ENVIRONMENT still local/test or STUB=true — should be alpha in alpha env',
         'Google API returns 403/404 — event creation failed, check calendar ID exists and SA shared',
+        'SA cannot invite attendees without DWD — code retries without attendees (personal Gmail cannot DWD)',
+        'SA on group calendars fails Invalid conference type value — group calendars via SA may not support hangoutsMeet — code retries bare event, real Meet requires OAuth',
       ],
       emailNotSentReasons: [
         'RESEND_API_KEY missing — add as Encrypted Secret Preview+Production',
@@ -105,6 +129,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
         'Need custom domain verified in Resend then FROM bookings@yourdomain.com to email any visitor',
         'Resend quota 100/day exceeded',
       ],
+      oauthGuidance: {
+        whenNeeded: 'To get real Meet links on group calendars with personal Gmail (no Workspace DWD), use OAuth user flow — SA alone cannot create Meet',
+        how: 'Create OAuth client ID (Web app) with redirect https://developers.google.com/oauthplayground, get refresh token via playground with calendar scopes, store GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN as Encrypted Secrets Preview+Prod and in .dev.vars (gitignored)',
+        check: '/api/debug/diag → oauth.hasFullConfig should be true',
+      },
     },
   }
 

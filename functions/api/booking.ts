@@ -1,7 +1,7 @@
 import { verifyTurnstile } from '../_lib/turnstile'
 import { sendConfirmationEmail } from '../_lib/email'
 import { getFreeBusy, createBookingEvent, TIMEZONE, getDiagInfo } from '../_lib/google-calendar'
-import { getBookingCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret } from '../_lib/env'
+import { getBookingCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret, hasOAuthConfig } from '../_lib/env'
 
 export interface Env {
   DB?: any
@@ -235,7 +235,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     console.log(`!!! GCAL_CREATE_RESULT source=${source} eventId=${calendarEventId} meetLink=${meetLink} error=${gcalError || 'none'}`)
 
     // If we are in alpha/prod and expected live but got stub, surface error details so alpha diagnosis knows
-    const expectedLive = !!getGcalServiceKey(env) && !!getBookingCalendarId(env) && env?.ENVIRONMENT !== 'local' && env?.ENVIRONMENT !== 'test' && env?.STUB !== 'true'
+    const hasLiveCreds = (!!getGcalServiceKey(env) || hasOAuthConfig(env)) && !!getBookingCalendarId(env)
+    const expectedLive = hasLiveCreds && env?.ENVIRONMENT !== 'local' && env?.ENVIRONMENT !== 'test' && env?.STUB !== 'true'
     if (expectedLive && source === 'stub') {
       console.error(`!!! GCAL_EXPECTED_LIVE_BUT_GOT_STUB diag=${JSON.stringify(diagBefore)} gcalError=${gcalError}`)
       console.log('!!! BOOKING_ABORT_DB_INSERT real Google required but got stub — returning 502 per requirement only record after Google 200')
