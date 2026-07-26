@@ -1,11 +1,16 @@
 import { verifyTurnstile } from '../_lib/turnstile'
 import { sendConfirmationEmail } from '../_lib/email'
-import { getFreeBusy, createBookingEvent, normalizeSlotMinutes, TIMEZONE } from '../_lib/google-calendar'
+import { getFreeBusy, createBookingEvent, TIMEZONE, getDiagInfo } from '../_lib/google-calendar'
+import { getBookingCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret } from '../_lib/env'
 
 export interface Env {
   DB?: any
   BOOKING_CALENDAR_ID?: string
+  BOOKING?: string
+  BOOKING_CALENDAR?: string
   PERSONAL_CALENDAR_ID?: string
+  PERSONAL?: string
+  PERSONAL_CALENDAR?: string
   WORKING_HOURS_START?: string
   WORKING_HOURS_END?: string
   WORKING_DAYS?: string
@@ -15,10 +20,17 @@ export interface Env {
   SITE_URL?: string
   ENVIRONMENT?: string
   TURNSTILE_SECRET_KEY?: string
+  TURNSTILE_SECRET?: string
   TURNSTILE_SITE_KEY?: string
   RESEND_API_KEY?: string
+  RESEND_KEY?: string
   EMAIL_FROM?: string
+  FROM?: string
+  GCAL_SERVICE_ACCOUNT_KEY?: string
+  GOOGLE_SERVICE_ACCOUNT_KEY?: string
   STUB?: string
+  STUB_SLOTS?: string
+  [key: string]: any
 }
 
 function isValidEmail(email: string): boolean {
@@ -63,15 +75,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return new Response(JSON.stringify({ error: 'Invalid email format' }), { status: 400, headers })
     }
 
-    // Turnstile verification — bypass when ENVIRONMENT test/local or STUB
-    const turnstileResult = await verifyTurnstile(turnstileToken, env?.TURNSTILE_SECRET_KEY || '', {
+    // Turnstile verification — supports alias resolution
+    const resolvedTurnstileSecret = getTurnstileSecret(env) || env?.TURNSTILE_SECRET_KEY || ''
+    const turnstileResult = await verifyTurnstile(turnstileToken, resolvedTurnstileSecret, {
       ENVIRONMENT: env?.ENVIRONMENT,
       STUB: env?.STUB,
       REMOTE_IP: (request as any).headers?.get?.('CF-Connecting-IP') || '',
+      ...env, // pass full env for alias resolution
     })
 
     if (!turnstileResult.ok) {
-      return new Response(JSON.stringify({ error: 'Turnstile verification failed', details: turnstileResult.error }), {
+      return new Response(JSON.stringify({ error: 'Turnstile verification failed', details: turnstileResult.error, source: turnstileResult.source }), {
         status: 400,
         headers,
       })
@@ -169,8 +183,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     // Generate cancel_token UUIDv4 — 122 bits entropy, not guessable, one-time use
     const cancelToken = crypto.randomUUID()
 
-    // Create GCal event with Meet link auto
+    // Create GCal event with Meet link auto — use alias-aware env
     const siteUrl = env?.SITE_URL || 'https://profile-webapp.pages.dev'
+    const diagBefore = getDiagInfo(env)
     const { calendarEventId, meetLink, source, error: gcalError } = await createBookingEvent(env, {
       firstName,
       lastName,
@@ -181,6 +196,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       cancelToken,
       siteUrl,
     })
+
+    // If we are in alpha/prod and expected live but got stub, surface error details so alpha diagnosis knows
+    const expectedLive = !!getGcalServiceKey(env) && !!getBookingCalendarId(env) && env?.ENVIRONMENT !== 'local' && env?.ENVIRONMENT !== 'test' && env?.STUB !== 'true'
+    if (expectedLive && source === 'stub') {
+      console.error(`[Booking] Expected live Meet link but got stub — diag: ${JSON.stringify(diagBefore)}, gcalError: ${gcalError}`)
+      // Don't fail booking entirely, but include error; however for alpha/prod we want client to know if Meet failed
+      // If error indicates missing permission (403) or invalid calendar ID, we still return 200 with gcalError so UI can show warning
+    }
 
     // Insert booking
     try {
@@ -210,7 +233,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     const cancelUrl = `${siteUrl}/api/cancel/${cancelToken}`
 
-    await sendConfirmationEmail({
+    const emailResult = await sendConfirmationEmail({
       to: email,
       firstName,
       lastName,
@@ -219,15 +242,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       dateTime: dateTimeEt,
       purpose,
       env: {
-        RESEND_API_KEY: env?.RESEND_API_KEY,
-        EMAIL_FROM: env?.EMAIL_FROM,
+        RESEND_API_KEY: getResendApiKey(env) || env?.RESEND_API_KEY,
+        EMAIL_FROM: env?.EMAIL_FROM || env?.FROM,
         ENVIRONMENT: env?.ENVIRONMENT,
         SITE_URL: siteUrl,
+        ...env,
       },
     })
 
     // Invalidate calendar cache — for Workers Cache, we can't directly purge, but we return header to indicate invalidation needed
-    // In real implementation, cache key calendar_slots_weeks_* should be deleted via caches.default.delete or similar
 
     return new Response(
       JSON.stringify({
@@ -238,7 +261,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         calendarEventId,
         source,
         gcalError: gcalError || undefined,
+        emailResult: {
+          success: emailResult.success,
+          source: emailResult.source,
+          error: emailResult.error,
+          id: emailResult.id,
+        },
         contactId,
+        diag: {
+          bookingCalendar: !!getBookingCalendarId(env),
+          gcalKey: !!getGcalServiceKey(env),
+          resendKey: !!getResendApiKey(env),
+          env: env?.ENVIRONMENT,
+        },
       }),
       {
         status: 200,

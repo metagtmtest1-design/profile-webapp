@@ -5,7 +5,7 @@ import { generateIcsContent, downloadIcsFile } from '../../lib/ics'
 
 export interface BookingFormProps {
   slot: CalendarSlot
-  onSuccess: (data: { meetLink: string; dateTime: string; cancelUrl: string }) => void
+  onSuccess: (data: { meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any }) => void
   onCancel?: () => void
 }
 
@@ -21,7 +21,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [confirmIntent, setConfirmIntent] = useState(false)
-  const [success, setSuccess] = useState<{ meetLink: string; dateTime: string; cancelUrl: string } | null>(null)
+  const [success, setSuccess] = useState<{ meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any } | null>(null)
 
   // Load Turnstile widget — real token for alpha/prod, fake stub for local/test (so TDD not blocked)
   useEffect(() => {
@@ -105,8 +105,22 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         return
       }
 
-      setSuccess({ meetLink: result.meetLink, dateTime: result.dateTime, cancelUrl: result.cancelUrl })
-      onSuccess({ meetLink: result.meetLink, dateTime: result.dateTime, cancelUrl: result.cancelUrl })
+      setSuccess({
+        meetLink: result.meetLink,
+        dateTime: result.dateTime,
+        cancelUrl: result.cancelUrl,
+        source: result.source,
+        gcalError: result.gcalError,
+        emailResult: result.emailResult,
+      })
+      onSuccess({
+        meetLink: result.meetLink,
+        dateTime: result.dateTime,
+        cancelUrl: result.cancelUrl,
+        source: result.source,
+        gcalError: result.gcalError,
+        emailResult: result.emailResult,
+      })
     } catch (err: any) {
       const msg = err.body?.error || err.message || 'Booking failed'
       setError(msg)
@@ -116,6 +130,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   }
 
   if (success) {
+    const isFakeMeet = success.meetLink.includes('fake-')
     const handleDownloadIcs = () => {
       const ics = generateIcsContent({
         title: `Meeting — ${firstName} ${lastName}`,
@@ -136,6 +151,26 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         <p className="text-sm mb-3">
           Meet: <a href={success.meetLink} className="underline" target="_blank" rel="noopener noreferrer">{success.meetLink}</a>
         </p>
+        {isFakeMeet && (
+          <div className="p-3 border border-amber-300 bg-amber-50 rounded-lg text-xs text-amber-800 mb-3">
+            <div className="font-semibold">⚠️ Fake Meet link (stub)</div>
+            <div>This booking used stub data — Google Calendar secrets missing or permission error. In alpha/prod, check /api/debug/diag — ensure GCAL_SERVICE_ACCOUNT_KEY, BOOKING_CALENDAR_ID, calendar shared as Make changes and see all event details.</div>
+            {success.gcalError && <div className="mt-1 font-mono text-[11px] break-all">Error: {success.gcalError}</div>}
+          </div>
+        )}
+        {success.emailResult && !success.emailResult.success && (
+          <div className="p-3 border border-orange-300 bg-orange-50 rounded-lg text-xs text-orange-800 mb-3">
+            <div className="font-semibold">📧 Email not sent — but booking saved</div>
+            <div>{success.emailResult.error || 'Resend failed'}</div>
+            <div className="mt-1 text-[11px]">If using onboarding@resend.dev test mode, send only to your own verified email. Verify custom domain in Resend to email any visitor.</div>
+            <div className="mt-1">Check /api/debug/diag → email section</div>
+          </div>
+        )}
+        {success.emailResult && success.emailResult.success && success.emailResult.source === 'live' && (
+          <div className="p-2 border border-green-200 bg-white rounded-lg text-[11px] text-green-700 mb-3">
+            📧 Confirmation email sent via Resend ({success.emailResult.id})
+          </div>
+        )}
         <div className="flex flex-wrap gap-3 mt-4">
           <button onClick={handleDownloadIcs} className="px-6 py-3 bg-slate-900 text-white rounded-full text-sm font-semibold hover:bg-black leading-none">
             Download invite (.ics)

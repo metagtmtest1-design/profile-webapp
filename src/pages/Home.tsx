@@ -32,7 +32,7 @@ export function Home() {
   const { slots, grouped, loading: calLoading, error: calError, slotMinutes, excludeToday, refetch: refetchCalendar } = useCalendar(2)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<any>(null)
-  const [bookingResult, setBookingResult] = useState<{ meetLink: string; dateTime: string; cancelUrl: string } | null>(null)
+  const [bookingResult, setBookingResult] = useState<{ meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any } | null>(null)
 
   const selectedSlots = useMemo(() => {
     if (!selectedDate) return []
@@ -114,7 +114,20 @@ export function Home() {
                   <div className="card rounded-2xl p-6 bg-green-50 border-green-300 text-center">
                     <h3 className="font-black text-xl mb-3">Meeting Confirmed ✅</h3>
                     <p className="text-sm mb-2">{bookingResult.dateTime}</p>
-                    <p className="text-sm mb-4">Meet: <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="underline">{bookingResult.meetLink}</a></p>
+                    <p className="text-sm mb-2">Meet: <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="underline">{bookingResult.meetLink}</a></p>
+                    {bookingResult.meetLink.includes('fake-') && (
+                      <div className="mx-auto max-w-md p-3 border border-amber-300 bg-amber-50 rounded-lg text-xs text-amber-800 mb-3 text-left">
+                        <div className="font-semibold">⚠️ Fake Meet link — stub</div>
+                        <div>Google Calendar secret or permission issue. Check /api/debug/diag</div>
+                        {bookingResult.gcalError && <div className="mt-1 font-mono break-all">{bookingResult.gcalError}</div>}
+                      </div>
+                    )}
+                    {bookingResult.emailResult && !bookingResult.emailResult.success && (
+                      <div className="mx-auto max-w-md p-3 border border-orange-300 bg-orange-50 rounded-lg text-xs text-orange-800 mb-3 text-left">
+                        <div className="font-semibold">📧 Email not sent</div>
+                        <div>{bookingResult.emailResult.error}</div>
+                      </div>
+                    )}
                     <div className="flex gap-3 justify-center flex-wrap">
                       <button onClick={() => { const ics = generateIcsContent({ title: `Meeting — ${bookingResult.dateTime}`, description: `Meet: ${bookingResult.meetLink}\nCancel: ${bookingResult.cancelUrl}`, location: bookingResult.meetLink, start: selectedSlot?.start || new Date().toISOString(), end: selectedSlot?.end || new Date().toISOString(), meetLink: bookingResult.meetLink }); downloadIcsFile(ics, `meeting-${selectedDate}.ics`); }} className="px-6 py-3 bg-slate-900 text-white rounded-full text-sm font-semibold hover:bg-black leading-none">
                         Download invite (.ics)

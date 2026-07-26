@@ -156,6 +156,9 @@ export interface BookingResponse {
   warning?: string
   confirmIntent?: boolean
   duplicateWarning?: boolean
+  gcalError?: string
+  emailResult?: { success: boolean; source: string; error?: string; id?: string }
+  diag?: { bookingCalendar: boolean; gcalKey: boolean; resendKey: boolean; env?: string }
 }
 
 export async function createBooking(payload: BookingPayload, options: FetchOptions = {}): Promise<BookingResponse> {

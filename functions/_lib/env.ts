@@ -6,6 +6,70 @@ export interface EnvVars {
   [key: string]: any
 }
 
+const BOOKING_ALIASES = [
+  'BOOKING_CALENDAR_ID',
+  'BOOKING',
+  'BOOKING_CALENDAR',
+  'CALENDAR_ID',
+  'GCAL_BOOKING_CALENDAR_ID',
+]
+
+const PERSONAL_ALIASES = [
+  'PERSONAL_CALENDAR_ID',
+  'PERSONAL',
+  'PERSONAL_CALENDAR',
+  'GCAL_PERSONAL_CALENDAR_ID',
+]
+
+const GCAL_KEY_ALIASES = [
+  'GCAL_SERVICE_ACCOUNT_KEY',
+  'GOOGLE_SERVICE_ACCOUNT_KEY',
+  'SERVICE_ACCOUNT_KEY',
+  'GCAL_KEY',
+]
+
+const RESEND_KEY_ALIASES = [
+  'RESEND_API_KEY',
+  'RESEND_KEY',
+  'EMAIL_API_KEY',
+]
+
+const TURNSTILE_SECRET_ALIASES = [
+  'TURNSTILE_SECRET_KEY',
+  'TURNSTILE_SECRET',
+  'CF_TURNSTILE_SECRET',
+]
+
+export function resolveEnvVar(env: any, aliases: string[]): string | undefined {
+  if (!env) return undefined
+  for (const key of aliases) {
+    const val = env[key]
+    if (typeof val === 'string' && val.trim().length > 0) return val.trim()
+    if (val && typeof val !== 'string') return String(val)
+  }
+  return undefined
+}
+
+export function getBookingCalendarId(env: any): string | undefined {
+  return resolveEnvVar(env, BOOKING_ALIASES)
+}
+
+export function getPersonalCalendarId(env: any): string | undefined {
+  return resolveEnvVar(env, PERSONAL_ALIASES)
+}
+
+export function getGcalServiceKey(env: any): string | undefined {
+  return resolveEnvVar(env, GCAL_KEY_ALIASES)
+}
+
+export function getResendApiKey(env: any): string | undefined {
+  return resolveEnvVar(env, RESEND_KEY_ALIASES)
+}
+
+export function getTurnstileSecret(env: any): string | undefined {
+  return resolveEnvVar(env, TURNSTILE_SECRET_ALIASES)
+}
+
 export function getEnvironment(env?: EnvVars | null): EnvironmentName {
   if (!env || !env.ENVIRONMENT) {
     return 'production'

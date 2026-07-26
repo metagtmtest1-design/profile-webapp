@@ -1,8 +1,13 @@
-import { computeSlots, getFreeBusy, getStubSlots, normalizeSlotMinutes, parseExcludeToday } from '../../_lib/google-calendar'
+import { computeSlots, getFreeBusy, getStubSlots, normalizeSlotMinutes, parseExcludeToday, getDiagInfo } from '../../_lib/google-calendar'
+import { getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey } from '../../_lib/env'
 
 export interface Env {
   BOOKING_CALENDAR_ID?: string
+  BOOKING?: string
+  BOOKING_CALENDAR?: string
   PERSONAL_CALENDAR_ID?: string
+  PERSONAL?: string
+  PERSONAL_CALENDAR?: string
   WORKING_HOURS_START?: string
   WORKING_HOURS_END?: string
   WORKING_DAYS?: string // "1,2,3,4,5"
@@ -12,8 +17,10 @@ export interface Env {
   ENVIRONMENT?: string
   SITE_URL?: string
   GCAL_SERVICE_ACCOUNT_KEY?: string
+  GOOGLE_SERVICE_ACCOUNT_KEY?: string
   STUB?: string
   STUB_SLOTS?: string
+  [key: string]: any
 }
 
 function parseWorkingDays(raw?: string): number[] {
@@ -84,6 +91,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       // No title, summary, description, attendees
     }))
 
+    const diag = getDiagInfo(env)
+
     return new Response(
       JSON.stringify({
         slots: safeSlots,
@@ -91,10 +100,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         source, // stub or live — for debugging, UI can show badge
         error: error || undefined,
         calendars: {
-          booking: env?.BOOKING_CALENDAR_ID ? 'configured' : 'not-configured',
-          personal: env?.PERSONAL_CALENDAR_ID ? 'configured' : 'not-configured',
+          booking: getBookingCalendarId(env) ? 'configured' : 'not-configured',
+          personal: getPersonalCalendarId(env) ? 'configured' : 'not-configured',
+          gcalKey: getGcalServiceKey(env) ? 'configured' : 'not-configured',
+          // keep old keys for backward compat
+          bookingConfigured: !!getBookingCalendarId(env),
+          personalConfigured: !!getPersonalCalendarId(env),
         },
         workingHours,
+        diag,
       }),
       {
         status: 200,

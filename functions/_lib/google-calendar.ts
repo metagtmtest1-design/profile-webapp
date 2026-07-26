@@ -1,3 +1,5 @@
+import { getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey } from './env'
+
 export interface WorkingHours {
   start: string // "09:00"
   end: string // "17:00"
@@ -232,13 +234,13 @@ export function getStubSlots(weeks: number = 2, excludeToday: boolean = false): 
 // Real FreeBusy via Service Account JWT (for slots endpoint)
 // This is used by slots.ts but stubbed when key missing
 export async function getFreeBusy(env: any): Promise<{ busyBlocks: BusyBlock[]; source: 'live' | 'stub'; error?: string }> {
-  const saKeyRaw = env?.GCAL_SERVICE_ACCOUNT_KEY
-  const bookingId = env?.BOOKING_CALENDAR_ID
-  const personalId = env?.PERSONAL_CALENDAR_ID
+  const saKeyRaw = getGcalServiceKey(env) || env?.GCAL_SERVICE_ACCOUNT_KEY
+  const bookingId = getBookingCalendarId(env) || env?.BOOKING_CALENDAR_ID || env?.BOOKING
+  const personalId = getPersonalCalendarId(env) || env?.PERSONAL_CALENDAR_ID || env?.PERSONAL
   const isStub = !saKeyRaw || env?.STUB === 'true' || env?.STUB_SLOTS === 'true' || env?.ENVIRONMENT === 'test' || env?.ENVIRONMENT === 'local'
 
   if (isStub) {
-    return { busyBlocks: getStubBusyBlocks(), source: 'stub' }
+    return { busyBlocks: getStubBusyBlocks(), source: 'stub', error: !saKeyRaw ? 'GCAL_SERVICE_ACCOUNT_KEY missing (checked aliases)' : undefined }
   }
 
   try {
@@ -373,17 +375,41 @@ export interface CreateEventResult {
 }
 
 export async function createBookingEvent(env: any, params: CreateEventParams): Promise<CreateEventResult> {
-  const saKeyRaw = env?.GCAL_SERVICE_ACCOUNT_KEY
-  const bookingId = env?.BOOKING_CALENDAR_ID
+  const saKeyRaw = getGcalServiceKey(env) || env?.GCAL_SERVICE_ACCOUNT_KEY
+  const bookingId = getBookingCalendarId(env) || env?.BOOKING_CALENDAR_ID || env?.BOOKING
   const siteUrl = env?.SITE_URL || 'https://profile-webapp.pages.dev'
-  const isStub = !saKeyRaw || env?.STUB === 'true' || env?.ENVIRONMENT === 'test' || env?.ENVIRONMENT === 'local'
+  const envName = env?.ENVIRONMENT || ''
+  const isLocalOrTest = envName === 'local' || envName === 'test'
+  const isStubFlag = env?.STUB === 'true'
 
-  if (isStub || !bookingId) {
-    // Stub: return mock Meet link
+  // Clear stub condition: only when explicitly told or missing key + local/test, or missing bookingId
+  const isStub = (!saKeyRaw && isLocalOrTest) || isStubFlag || envName === 'test' || envName === 'local'
+
+  if (!bookingId) {
+    // Missing booking calendar ID — this is critical, should NOT silently fake in alpha/prod
+    if (!isLocalOrTest && !isStubFlag) {
+      return {
+        calendarEventId: `missing-booking-id-${params.cancelToken}`,
+        meetLink: `https://meet.google.com/fake-missing-calendar-${params.cancelToken.slice(0, 4)}`,
+        source: 'stub',
+        error: `BOOKING_CALENDAR_ID not configured — checked aliases BOOKING_CALENDAR_ID, BOOKING, BOOKING_CALENDAR. Env: ${envName}`,
+      }
+    }
     return {
       calendarEventId: `stub-event-${params.cancelToken}`,
       meetLink: `https://meet.google.com/fake-${params.cancelToken.slice(0, 8)}`,
       source: 'stub',
+      error: 'BOOKING_CALENDAR_ID missing — stub',
+    }
+  }
+
+  if (isStub || !saKeyRaw) {
+    // Local/test or explicit STUB => return mock but include reason
+    return {
+      calendarEventId: `stub-event-${params.cancelToken}`,
+      meetLink: `https://meet.google.com/fake-${params.cancelToken.slice(0, 8)}`,
+      source: 'stub',
+      error: !saKeyRaw ? 'GCAL_SERVICE_ACCOUNT_KEY missing — stub' : 'STUB flag or local/test env',
     }
   }
 
@@ -486,12 +512,30 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
       source: 'live',
     }
   } catch (e: any) {
-    // Fallback to stub on error
+    // For alpha/prod, we should NOT silently return fake — include detailed error so caller can surface
+    // But for resilience, still return stub with error for observability
+    const isLocal = env?.ENVIRONMENT === 'local' || env?.ENVIRONMENT === 'test'
+    const detailed = `createBookingEvent failed: ${e?.message || String(e)} — bookingId: ${bookingId ? 'present' : 'missing'}, env: ${env?.ENVIRONMENT}, hasKey: ${!!saKeyRaw}`
+    console.error(detailed)
+
+    // In prod/alpha, if we have key and bookingId, this is a real error (likely permission 403 or bad calendar ID)
+    // Return stub but caller (booking.ts) will surface gcalError
     return {
       calendarEventId: `stub-event-${params.cancelToken}`,
       meetLink: `https://meet.google.com/fake-${params.cancelToken.slice(0, 8)}`,
       source: 'stub',
-      error: e?.message,
+      error: detailed,
     }
+  }
+}
+
+export function getDiagInfo(env: any) {
+  return {
+    bookingId: !!getBookingCalendarId(env),
+    bookingIdAlt: !!env?.BOOKING_CALENDAR_ID || !!env?.BOOKING,
+    personalId: !!getPersonalCalendarId(env),
+    gcalKey: !!getGcalServiceKey(env),
+    env: env?.ENVIRONMENT || 'unknown',
+    stubFlag: env?.STUB,
   }
 }
