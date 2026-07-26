@@ -22,7 +22,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   const [warning, setWarning] = useState<string | null>(null)
   const [confirmIntent, setConfirmIntent] = useState(false)
   const [success, setSuccess] = useState<{ meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any; pending?: boolean; message?: string; purpose?: string | null } | null>(null)
-  const [pending, setPending] = useState<{ email: string; dateTime: string; purpose?: string | null; message: string } | null>(null)
+  const [pending, setPending] = useState<{ email: string; dateTime: string; purpose?: string | null; message: string; confirmUrl?: string; emailResult?: any } | null>(null)
 
   // Load Turnstile widget — real token for alpha/prod, fake stub for local/test (so TDD not blocked)
   // Store widgetId for reset
@@ -159,12 +159,14 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
       }
       // Double opt-in pending — show check email message per requirement
       if ((result as any).pending) {
-        console.log(`!!! BOOKING_FORM_PENDING email=${(result as any).email} dateTime=${result.dateTime} purpose=${(result as any).purpose || 'none'}`)
+        console.log(`!!! BOOKING_FORM_PENDING email=${(result as any).email} dateTime=${result.dateTime} purpose=${(result as any).purpose || 'none'} confirmUrl=${(result as any).confirmUrl || 'none'} emailSuccess=${result.emailResult?.success}`)
         setPending({
           email: (result as any).email || email,
           dateTime: (result as any).dateTime,
           purpose: (result as any).purpose,
           message: (result as any).message || `Check your email (${email}) to confirm`,
+          confirmUrl: (result as any).confirmUrl,
+          emailResult: (result as any).emailResult,
         })
         return result
       }
@@ -222,6 +224,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   }
 
   if (pending) {
+    const isEmailFail = pending.emailResult && !pending.emailResult.success
     return (
       <div className="card rounded-2xl p-6 bg-blue-50 border-blue-300">
         <h3 className="font-bold text-lg mb-2">Check your email 📧</h3>
@@ -229,13 +232,30 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         <p className="text-sm mb-2">Email: <strong>{pending.email}</strong></p>
         <p className="text-sm mb-2">Date: {pending.dateTime}</p>
         {pending.purpose && <p className="text-sm mb-3">Purpose: <strong>{pending.purpose}</strong> — will be included in calendar invite</p>}
-        <p className="text-xs text-gray-600 mb-3">We sent a confirmation link that expires in 30 minutes. Click it to schedule the Google Calendar event with Meet link. Purpose will be in invite.</p>
-        <p className="text-xs text-gray-500">Didn't get email? Check spam, or try again. For Resend test mode onboarding@resend.dev, only your own verified email works.</p>
-        {onCancel && (
-          <button onClick={() => { setPending(null); resetTurnstile(); }} className="mt-4 px-6 py-3 border rounded-full text-sm font-medium hover:bg-white">
-            Back
-          </button>
+        {pending.confirmUrl && (
+          <div className="mt-3 p-3 bg-white border rounded-lg">
+            <p className="text-xs font-semibold mb-1">Confirm link (for testing when email fails):</p>
+            <a href={pending.confirmUrl} className="text-xs underline break-all" target="_blank" rel="noopener noreferrer">{pending.confirmUrl}</a>
+            <div className="mt-2">
+              <a href={pending.confirmUrl} className="inline-block px-4 py-2 bg-black text-white rounded-full text-xs font-semibold">Confirm now →</a>
+            </div>
+          </div>
         )}
+        <p className="text-xs text-gray-600 mt-3 mb-1">We sent a confirmation link that expires in 30 minutes. Click it to schedule the Google Calendar event with Meet link. Purpose will be in invite.</p>
+        {isEmailFail && (
+          <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 mt-2">
+            <div className="font-semibold">⚠️ Email failed: {pending.emailResult?.error?.slice(0, 200)}</div>
+            <div className="mt-1">Resend test mode onboarding@resend.dev can only send to your own email metagtmtest1@gmail.com. Verify domain at resend.com/domains to send to any visitor. For testing, use confirm link above.</div>
+          </div>
+        )}
+        <p className="text-xs text-gray-500 mt-2">Didn't get email? Check spam, or use confirm link. For Resend test mode, only owner email works.</p>
+        <div className="flex gap-2 mt-4">
+          {onCancel && (
+            <button onClick={() => { setPending(null); resetTurnstile(); }} className="px-6 py-3 border rounded-full text-sm font-medium hover:bg-white">
+              Back
+            </button>
+          )}
+        </div>
       </div>
     )
   }

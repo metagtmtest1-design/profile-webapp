@@ -292,19 +292,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       })
       console.log(`!!! PENDING_CONFIRM_EMAIL_RESULT success=${pendingEmailResult.success} source=${pendingEmailResult.source} error=${pendingEmailResult.error || 'none'}`)
 
-      if (!pendingEmailResult.success && env?.ENVIRONMENT !== 'local' && env?.ENVIRONMENT !== 'test') {
-        console.log('!!! PENDING_EMAIL_FAILED returning 502')
-        return new Response(
-          JSON.stringify({
-            error: 'Failed to send confirmation email',
-            details: pendingEmailResult.error,
-            guidance: 'Check RESEND_API_KEY secret and FROM onboarding@resend.dev only to own verified email',
-          }),
-          { status: 502, headers }
-        )
+      const emailFailed = !pendingEmailResult.success
+      const isTestModeError = pendingEmailResult.error?.includes('own email address') || pendingEmailResult.error?.includes('validation_error') || pendingEmailResult.error?.includes('verify a domain')
+
+      if (emailFailed) {
+        console.log(`!!! PENDING_EMAIL_FAILED isTestMode=${isTestModeError} error=${pendingEmailResult.error} — returning pending with confirmUrl for testing (Resend onboarding only to own email)`)
       }
 
       // Return pending response — frontend shows Check your email message
+      // Even if email failed (Resend test mode onboarding@ only to own email), still return pending with confirmUrl so user can confirm via website for testing
+      // The confirmUrl is one-time and expires 30 min — frontend will show it when email fails
       console.log('!!! BOOKING_PENDING_RETURN check email message')
       return new Response(
         JSON.stringify({
@@ -314,8 +311,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           dateTime: dateTimeEt,
           email,
           purpose: purpose || null,
-          message: `Check your email (${email}) to confirm your meeting for ${dateTimeEt}. Link expires in 30 minutes. Purpose will be included in calendar invite.`,
+          message: emailFailed
+            ? isTestModeError
+              ? `Email sending failed (Resend test mode: can only send to your own email ${pendingEmailResult.error?.includes('metagtmtest1@gmail.com') ? 'metagtmtest1@gmail.com' : 'owner'}). For testing, use your own email or verify domain at resend.com/domains. Your confirm link (for testing): ${confirmUrl} — Purpose will be in invite.`
+              : `Check your email (${email}) to confirm, but email delivery had issue: ${pendingEmailResult.error}. Your confirm link for testing: ${confirmUrl}`
+            : `Check your email (${email}) to confirm your meeting for ${dateTimeEt}. Link expires in 30 minutes. Purpose will be included in calendar invite.`,
           expiresAt,
+          emailResult: {
+            success: pendingEmailResult.success,
+            source: pendingEmailResult.source,
+            error: pendingEmailResult.error,
+            isTestModeError,
+          },
         }),
         {
           status: 200,
