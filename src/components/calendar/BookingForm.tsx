@@ -24,45 +24,74 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   const [success, setSuccess] = useState<{ meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any } | null>(null)
 
   // Load Turnstile widget — real token for alpha/prod, fake stub for local/test (so TDD not blocked)
-  useEffect(() => {
+  // Store widgetId for reset
+  const widgetIdRef = React.useRef<string | number | null>(null)
+
+  const renderTurnstile = React.useCallback(() => {
     const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     if (isLocalHost) {
-      // Local Docker — use fake token for stub verification (backend bypasses when ENVIRONMENT local/test)
+      setTurnstileToken('fake-token-for-test')
+      return true
+    }
+    const siteKey = (window as any)?.TURNSTILE_SITE_KEY || '0x4AAAAAAD8-3h6x-RUDasMf'
+    if (typeof window !== 'undefined' && (window as any).turnstile) {
+      try {
+        const existing = document.querySelector('#turnstile-widget')
+        if (existing) existing.innerHTML = ''
+        // Reset previous if any
+        if (widgetIdRef.current !== null) {
+          try {
+            ;(window as any).turnstile.remove(widgetIdRef.current)
+          } catch {}
+        }
+        const id = (window as any).turnstile.render('#turnstile-widget', {
+          sitekey: siteKey,
+          callback: (token: string) => setTurnstileToken(token),
+          'error-callback': () => setTurnstileToken(''),
+          'expired-callback': () => setTurnstileToken(''),
+        })
+        widgetIdRef.current = id
+        return true
+      } catch {
+        return false
+      }
+    }
+    return false
+  }, [])
+
+  const resetTurnstile = React.useCallback(() => {
+    setTurnstileToken('')
+    const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    if (isLocalHost) {
       setTurnstileToken('fake-token-for-test')
       return
     }
-
-    const siteKey = (window as any)?.TURNSTILE_SITE_KEY || '0x4AAAAAAD8-3h6x-RUDasMf'
-
-    const tryRender = () => {
-      if (typeof window !== 'undefined' && (window as any).turnstile) {
-        try {
-          const existing = document.querySelector('#turnstile-widget')
-          if (existing) existing.innerHTML = ''
-          ;(window as any).turnstile.render('#turnstile-widget', {
-            sitekey: siteKey,
-            callback: (token: string) => setTurnstileToken(token),
-            'error-callback': () => setTurnstileToken(''), // clear on error
-            'expired-callback': () => setTurnstileToken(''),
-          })
-          return true
-        } catch {
-          return false
-        }
+    try {
+      if (widgetIdRef.current !== null && (window as any)?.turnstile) {
+        ;(window as any).turnstile.reset(widgetIdRef.current)
+      } else {
+        renderTurnstile()
       }
-      return false
+    } catch {
+      // Fallback re-render
+      renderTurnstile()
     }
+  }, [renderTurnstile])
 
-    // Try immediately, then poll every 500ms until Turnstile script loads (async defer)
-    if (!tryRender()) {
+  useEffect(() => {
+    const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    if (isLocalHost) {
+      setTurnstileToken('fake-token-for-test')
+      return
+    }
+    if (!renderTurnstile()) {
       const interval = setInterval(() => {
-        if (tryRender()) clearInterval(interval)
+        if (renderTurnstile()) clearInterval(interval)
       }, 500)
-      // Stop polling after 10s
       setTimeout(() => clearInterval(interval), 10000)
       return () => clearInterval(interval)
     }
-  }, [])
+  }, [renderTurnstile])
 
   const validate = (): string | null => {
     if (!firstName.trim()) return 'First name is required'
@@ -94,10 +123,12 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         turnstileToken,
         confirmIntent: intentOverride ?? confirmIntent,
       })
-      // Handle duplicate warning same email this week
+      // Handle duplicate warning same email this week — token is consumed by first verify, need new token for confirm
       if ((result as any).warning) {
         setWarning((result as any).warning)
         setConfirmIntent(true)
+        // Turnstile tokens are single-use (Cloudflare invalidates after siteverify) — reset for confirm flow
+        resetTurnstile()
         return null
       }
       setSuccess({
@@ -119,7 +150,12 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
       return result
     } catch (err: any) {
       const msg = err.body?.error || err.message || 'Booking failed'
+      const bodyStr = JSON.stringify(err.body || {})
       setError(msg)
+      // If Turnstile failed (token reused/expired), reset for retry
+      if (bodyStr.toLowerCase().includes('turnstile') || msg.toLowerCase().includes('turnstile')) {
+        resetTurnstile()
+      }
       return null
     } finally {
       setLoading(false)
@@ -220,12 +256,20 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         <div className="p-3 border border-amber-300 bg-amber-50 rounded-lg text-sm mb-4">
           <div className="font-semibold">Confirm intent?</div>
           <div>{warning}</div>
-          <div className="text-xs mt-1">You already booked this week. Confirm to book again.</div>
+          <div className="text-xs mt-1">You already booked this week. Turnstile token is single-use, so please verify again then confirm.</div>
+          {!turnstileToken && (
+            <div className="text-[11px] text-amber-700 mt-1">Verification expired — completing Turnstile challenge…</div>
+          )}
           <div className="flex gap-2 mt-2">
-            <button type="button" onClick={handleConfirmAndBookAgain} disabled={loading} className="px-4 py-2 bg-black text-white rounded-full text-xs font-semibold hover:bg-gray-800 disabled:opacity-50">
-              {loading ? 'Booking…' : 'Confirm and book again'}
+            <button
+              type="button"
+              onClick={handleConfirmAndBookAgain}
+              disabled={loading || !turnstileToken}
+              className="px-4 py-2 bg-black text-white rounded-full text-xs font-semibold hover:bg-gray-800 disabled:opacity-50"
+            >
+              {loading ? 'Booking…' : !turnstileToken ? 'Waiting for verification…' : 'Confirm and book again'}
             </button>
-            <button type="button" onClick={() => { setWarning(null); setConfirmIntent(false); }} className="px-3 py-2 border rounded-full text-xs bg-white hover:bg-gray-50">
+            <button type="button" onClick={() => { setWarning(null); setConfirmIntent(false); resetTurnstile(); }} className="px-3 py-2 border rounded-full text-xs bg-white hover:bg-gray-50">
               Cancel
             </button>
           </div>
