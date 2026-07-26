@@ -40,6 +40,24 @@ const TURNSTILE_SECRET_ALIASES = [
   'CF_TURNSTILE_SECRET',
 ]
 
+const OAUTH_CLIENT_ID_ALIASES = [
+  'GOOGLE_OAUTH_CLIENT_ID',
+  'OAUTH_CLIENT_ID',
+  'GCAL_OAUTH_CLIENT_ID',
+]
+
+const OAUTH_CLIENT_SECRET_ALIASES = [
+  'GOOGLE_OAUTH_CLIENT_SECRET',
+  'OAUTH_CLIENT_SECRET',
+  'GCAL_OAUTH_CLIENT_SECRET',
+]
+
+const OAUTH_REFRESH_TOKEN_ALIASES = [
+  'GOOGLE_OAUTH_REFRESH_TOKEN',
+  'OAUTH_REFRESH_TOKEN',
+  'GCAL_OAUTH_REFRESH_TOKEN',
+]
+
 export function resolveEnvVar(env: any, aliases: string[]): string | undefined {
   if (!env) return undefined
   for (const key of aliases) {
@@ -68,6 +86,22 @@ export function getResendApiKey(env: any): string | undefined {
 
 export function getTurnstileSecret(env: any): string | undefined {
   return resolveEnvVar(env, TURNSTILE_SECRET_ALIASES)
+}
+
+export function getOAuthClientId(env: any): string | undefined {
+  return resolveEnvVar(env, OAUTH_CLIENT_ID_ALIASES)
+}
+
+export function getOAuthClientSecret(env: any): string | undefined {
+  return resolveEnvVar(env, OAUTH_CLIENT_SECRET_ALIASES)
+}
+
+export function getOAuthRefreshToken(env: any): string | undefined {
+  return resolveEnvVar(env, OAUTH_REFRESH_TOKEN_ALIASES)
+}
+
+export function hasOAuthConfig(env: any): boolean {
+  return !!getOAuthClientId(env) && !!getOAuthClientSecret(env) && !!getOAuthRefreshToken(env)
 }
 
 export function getEnvironment(env?: EnvVars | null): EnvironmentName {

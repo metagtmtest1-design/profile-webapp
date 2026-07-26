@@ -1,4 +1,5 @@
-import { getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey } from './env'
+import { getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey, hasOAuthConfig } from './env'
+import { createBookingEventViaOAuth } from './google-oauth'
 
 export interface WorkingHours {
   start: string // "09:00"
@@ -398,7 +399,35 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
   // Clear stub condition: only when explicitly told or missing key + local/test, or missing bookingId
   const isStub = (!saKeyRaw && isLocalOrTest) || isStubFlag || envName === 'test' || envName === 'local'
 
-  console.log(`!!! GCAL_CREATE_EVENT_START env=${envName} hasKey=${!!saKeyRaw} bookingId=${bookingId ? bookingId.slice(0, 8) + '...' : 'missing'} isStub=${isStub} isLocalOrTest=${isLocalOrTest} cancelToken=${params.cancelToken} slot=${params.slot.start}`)
+  console.log(`!!! GCAL_CREATE_EVENT_START env=${envName} hasKey=${!!saKeyRaw} bookingId=${bookingId ? bookingId.slice(0, 8) + '...' : 'missing'} isStub=${isStub} isLocalOrTest=${isLocalOrTest} cancelToken=${params.cancelToken} slot=${params.slot.start} hasOAuth=${hasOAuthConfig(env)}`)
+
+  // Try OAuth first if configured — works for personal Gmail group calendars where SA fails Meet creation
+  if (hasOAuthConfig(env)) {
+    console.log('!!! GCAL_TRY_OAUTH_FIRST has OAuth config, attempting OAuth user flow for real Meet')
+    const oauthResult = await createBookingEventViaOAuth(env, {
+      firstName: params.firstName,
+      lastName: params.lastName,
+      email: params.email,
+      phone: params.phone,
+      purpose: params.purpose,
+      slot: params.slot,
+      cancelToken: params.cancelToken,
+      siteUrl,
+    })
+    console.log(`!!! GCAL_OAUTH_RESULT source=${oauthResult.source} eventId=${oauthResult.calendarEventId} meetLink=${oauthResult.meetLink} error=${oauthResult.error || 'none'}`)
+    if (oauthResult.source === 'live-oauth' && oauthResult.calendarEventId && !oauthResult.calendarEventId.startsWith('stub-')) {
+      // OAuth succeeded with real event — return as live (even if bare without Meet, it's real Google 200)
+      console.log('!!! GCAL_OAUTH_SUCCESS returning live event from OAuth')
+      return {
+        calendarEventId: oauthResult.calendarEventId,
+        meetLink: oauthResult.meetLink || `https://meet.google.com/fake-oauth-no-meet-${params.cancelToken.slice(0, 4)}`,
+        source: 'live',
+        error: oauthResult.error,
+      }
+    } else {
+      console.log(`!!! GCAL_OAUTH_FALLBACK_TO_SA reason=${oauthResult.error} — trying SA flow`)
+    }
+  }
 
   if (!bookingId) {
     console.log(`!!! GCAL_CREATE_FAIL_NO_BOOKING_ID env=${envName}`)
