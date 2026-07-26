@@ -1,7 +1,7 @@
 import { verifyTurnstile } from '../_lib/turnstile'
 import { sendConfirmationEmail } from '../_lib/email'
 import { getFreeBusy, createBookingEvent, TIMEZONE, getDiagInfo } from '../_lib/google-calendar'
-import { getBookingCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret, hasOAuthConfig } from '../_lib/env'
+import { getBookingCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret, hasOAuthConfig, getMaxBookingsPerWeek, isBookingLimitEnabled } from '../_lib/env'
 
 export interface Env {
   DB?: any
@@ -28,6 +28,9 @@ export interface Env {
   FROM?: string
   GCAL_SERVICE_ACCOUNT_KEY?: string
   GOOGLE_SERVICE_ACCOUNT_KEY?: string
+  BOOKING_MAX_PER_WEEK?: string
+  MAX_BOOKINGS_PER_WEEK?: string
+  BOOKING_LIMIT_ENABLED?: string
   STUB?: string
   STUB_SLOTS?: string
   [key: string]: any
@@ -105,46 +108,53 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return new Response(JSON.stringify({ error: 'DB not configured' }), { status: 500, headers })
     }
 
-    // Rate limit 3/email/week + same email this week warning
-    // Count bookings for this email in current week (Monday to Sunday)
-    console.log('!!! BOOKING_RATE_LIMIT_CHECK_START')
-    try {
-      const weekStart = getWeekStart(new Date()).toISOString()
-      console.log(`!!! BOOKING_RATE_LIMIT weekStart=${weekStart}`)
-      const countStmt = db.prepare('SELECT COUNT(*) as count FROM bookings WHERE contact_id IN (SELECT id FROM contacts WHERE email = ?1) AND created_at >= ?2')
-      const countResult = await countStmt.bind(email, weekStart).first() as any
-      const count = countResult?.count ?? 0
-      console.log(`!!! BOOKING_RATE_LIMIT count=${count} email=${email}`)
-      if (count >= 3) {
-        console.log(`!!! BOOKING_RATE_LIMIT_EXCEEDED count=${count}`)
-        return new Response(JSON.stringify({ error: 'Rate limit exceeded: 3 bookings per email per week', count }), {
-          status: 429,
-          headers,
-        })
-      }
-      // Warning flag same email booked this week
-      if (count >= 1) {
-        // If body does not have confirmIntent flag, return warning
-        if (!body.confirmIntent && !body.confirm_intent) {
-          console.log(`!!! BOOKING_DUPLICATE_WARNING count=${count} need confirmIntent`)
-          return new Response(
-            JSON.stringify({
-              warning: 'You already booked this week, confirm intent?',
-              confirmIntent: true,
-              duplicateWarning: true,
-              count,
-            }),
-            { status: 200, headers }
-          )
-        } else {
-          console.log(`!!! BOOKING_DUPLICATE_CONFIRMED count=${count} confirmIntent=${body.confirmIntent}`)
+    // Rate limit configurable via BOOKING_MAX_PER_WEEK (0 = disabled) + BOOKING_LIMIT_ENABLED
+    // Default 3 per week to match existing behavior, but can be turned off via env
+    const maxPerWeek = getMaxBookingsPerWeek(env)
+    const limitEnabled = isBookingLimitEnabled(env)
+    console.log(`!!! BOOKING_RATE_LIMIT_CHECK_START maxPerWeek=${maxPerWeek} limitEnabled=${limitEnabled}`)
+    if (!limitEnabled || maxPerWeek <= 0) {
+      console.log('!!! BOOKING_RATE_LIMIT_DISABLED config turns off limit — skipping duplicate check and max per week')
+    } else {
+      try {
+        const weekStart = getWeekStart(new Date()).toISOString()
+        console.log(`!!! BOOKING_RATE_LIMIT weekStart=${weekStart} max=${maxPerWeek}`)
+        const countStmt = db.prepare('SELECT COUNT(*) as count FROM bookings WHERE contact_id IN (SELECT id FROM contacts WHERE email = ?1) AND created_at >= ?2')
+        const countResult = await countStmt.bind(email, weekStart).first() as any
+        const count = countResult?.count ?? 0
+        console.log(`!!! BOOKING_RATE_LIMIT count=${count} email=${email} max=${maxPerWeek}`)
+        if (count >= maxPerWeek) {
+          console.log(`!!! BOOKING_RATE_LIMIT_EXCEEDED count=${count} max=${maxPerWeek}`)
+          return new Response(JSON.stringify({ error: `Rate limit exceeded: ${maxPerWeek} bookings per email per week`, count, maxPerWeek }), {
+            status: 429,
+            headers,
+          })
         }
-      } else {
-        console.log('!!! BOOKING_RATE_LIMIT_OK no prior bookings this week')
+        // Warning flag same email booked this week — only when maxPerWeek >1 and limit enabled
+        // If maxPerWeek is 1, duplicate warning at count>=1; if you want to allow unlimited, set max 0 or disabled
+        if (count >= 1) {
+          if (!body.confirmIntent && !body.confirm_intent) {
+            console.log(`!!! BOOKING_DUPLICATE_WARNING count=${count} need confirmIntent max=${maxPerWeek}`)
+            return new Response(
+              JSON.stringify({
+                warning: 'You already booked this week, confirm intent?',
+                confirmIntent: true,
+                duplicateWarning: true,
+                count,
+                maxPerWeek,
+              }),
+              { status: 200, headers }
+            )
+          } else {
+            console.log(`!!! BOOKING_DUPLICATE_CONFIRMED count=${count} confirmIntent=${body.confirmIntent} max=${maxPerWeek}`)
+          }
+        } else {
+          console.log('!!! BOOKING_RATE_LIMIT_OK no prior bookings this week')
+        }
+      } catch (e: any) {
+        console.log(`!!! BOOKING_RATE_LIMIT_CHECK_ERROR ${e?.message}`)
+        // Ignore count errors for stub
       }
-    } catch (e: any) {
-      console.log(`!!! BOOKING_RATE_LIMIT_CHECK_ERROR ${e?.message}`)
-      // Ignore count errors for stub
     }
 
     // Past slot check — race guard simple
