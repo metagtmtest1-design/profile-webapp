@@ -15,25 +15,52 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [purpose, setPurpose] = useState('')
-  const [turnstileToken, setTurnstileToken] = useState('fake-token-for-test') // default fake for local TDD, real widget sets via callback
+  // Start empty — real token from Turnstile widget in prod/alpha, fake only for local/test (TDD)
+  const [turnstileToken, setTurnstileToken] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [confirmIntent, setConfirmIntent] = useState(false)
   const [success, setSuccess] = useState<{ meetLink: string; dateTime: string; cancelUrl: string } | null>(null)
 
-  // Load Turnstile widget if site key present
+  // Load Turnstile widget — real token for alpha/prod, fake stub for local/test (so TDD not blocked)
   useEffect(() => {
-    const siteKey = (window as any)?.TURNSTILE_SITE_KEY || (import.meta as any)?.env?.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAD8-3h6x-RUDasMf'
-    // For real implementation, inject Turnstile script and render widget
-    // For MVP stub, keep fake token
-    if (typeof window !== 'undefined' && (window as any).turnstile) {
-      try {
-        ;(window as any).turnstile.render('#turnstile-widget', {
-          sitekey: siteKey,
-          callback: (token: string) => setTurnstileToken(token),
-        })
-      } catch {}
+    const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    if (isLocalHost) {
+      // Local Docker — use fake token for stub verification (backend bypasses when ENVIRONMENT local/test)
+      setTurnstileToken('fake-token-for-test')
+      return
+    }
+
+    const siteKey = (window as any)?.TURNSTILE_SITE_KEY || '0x4AAAAAAD8-3h6x-RUDasMf'
+
+    const tryRender = () => {
+      if (typeof window !== 'undefined' && (window as any).turnstile) {
+        try {
+          const existing = document.querySelector('#turnstile-widget')
+          if (existing) existing.innerHTML = ''
+          ;(window as any).turnstile.render('#turnstile-widget', {
+            sitekey: siteKey,
+            callback: (token: string) => setTurnstileToken(token),
+            'error-callback': () => setTurnstileToken(''), // clear on error
+            'expired-callback': () => setTurnstileToken(''),
+          })
+          return true
+        } catch {
+          return false
+        }
+      }
+      return false
+    }
+
+    // Try immediately, then poll every 500ms until Turnstile script loads (async defer)
+    if (!tryRender()) {
+      const interval = setInterval(() => {
+        if (tryRender()) clearInterval(interval)
+      }, 500)
+      // Stop polling after 10s
+      setTimeout(() => clearInterval(interval), 10000)
+      return () => clearInterval(interval)
     }
   }, [])
 
@@ -43,6 +70,8 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
     if (!email.trim()) return 'Email is required'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Invalid email format'
     if (!slot?.start || !slot?.end) return 'Slot is required'
+    const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    if (!isLocalHost && !turnstileToken) return 'Please complete verification (Turnstile)'
     return null
   }
 
