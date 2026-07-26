@@ -511,7 +511,7 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
     }
 
     let createRes: Response | null = null
-    let eventPayloadUsed = withAttendeesPayload
+    let eventPayloadUsed: any = withAttendeesPayload
 
     // First attempt — with attendees (would send Google invite if DWD allowed)
     console.log('!!! GCAL_EVENT_CREATE_ATTEMPT_1_WITH_ATTENDEES')
