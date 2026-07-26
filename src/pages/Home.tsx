@@ -29,7 +29,7 @@ function renderSection(section: Section) {
 
 export function Home() {
   const { data, loading, error } = useContent('home')
-  const { slots, grouped, loading: calLoading, error: calError, slotMinutes, excludeToday, refetch: refetchCalendar } = useCalendar(2)
+  const { slots, grouped, loading: calLoading, error: calError, slotMinutes, excludeToday, refetch: refetchCalendar, removeSlot } = useCalendar(2)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<any>(null)
   const [bookingResult, setBookingResult] = useState<{ meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any } | null>(null)
@@ -104,8 +104,16 @@ export function Home() {
                   <BookingForm
                     slot={selectedSlot}
                     onSuccess={(result) => {
+                      console.log(`!!! HOME_BOOKING_SUCCESS slot=${selectedSlot.start} removing optimistic + refetching calendar with cache bust`)
                       setBookingResult(result)
+                      // Optimistic removal so slot disappears immediately without reload
+                      removeSlot(selectedSlot)
+                      // Refetch with cache bust + short delay for Google FreeBusy propagation
                       refetchCalendar()
+                      setTimeout(() => {
+                        console.log('!!! HOME_BOOKING_REFETCH_DELAYED for Google propagation')
+                        refetchCalendar()
+                      }, 2000)
                     }}
                     onCancel={() => { setSelectedSlot(null); }}
                   />
@@ -137,7 +145,7 @@ export function Home() {
                       </a>
                     </div>
                     <div className="flex gap-3 justify-center flex-wrap mt-4">
-                      <button onClick={() => { setSelectedDate(null); setSelectedSlot(null); setBookingResult(null) }} className="px-6 py-3 bg-black text-white rounded-full text-sm font-semibold leading-none">Book another</button>
+                      <button onClick={() => { console.log('!!! HOME_BOOK_ANOTHER clear + refetch'); setSelectedDate(null); setSelectedSlot(null); setBookingResult(null); refetchCalendar(); }} className="px-6 py-3 bg-black text-white rounded-full text-sm font-semibold leading-none">Book another</button>
                       <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="px-6 py-3 bg-white border border-slate-200 rounded-full text-sm font-semibold leading-none inline-flex items-center justify-center">Open Meet →</a>
                     </div>
                   </div>

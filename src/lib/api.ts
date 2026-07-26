@@ -67,17 +67,19 @@ export class ApiError extends Error {
 export interface FetchOptions {
   timeoutMs?: number
   signal?: AbortSignal
+  cache?: RequestCache
 }
 
 async function fetchJson(url: string, options: FetchOptions & { method?: string } = {}) {
-  const { timeoutMs = 5000, signal, method = 'GET' } = options
+  const { timeoutMs = 5000, signal, method = 'GET', cache } = options as any
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)
   if (signal) {
     signal.addEventListener('abort', () => controller.abort(signal.reason))
   }
   try {
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, signal: controller.signal })
+    console.log(`!!! API_FETCH_START url=${url} cache=${cache || 'default'}`)
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, signal: controller.signal, cache: cache || 'no-store' } as any)
     const json = await res.json().catch(() => null)
     if (!res.ok) {
       throw new ApiError(`Request failed with ${res.status}`, res.status, json)
@@ -125,13 +127,18 @@ export interface SlotsResponse {
 }
 
 export async function fetchCalendarSlots(weeks: number = 2, options: FetchOptions = {}): Promise<CalendarSlot[]> {
-  const { json } = await fetchJson(`/api/calendar/slots?weeks=${weeks}`, options)
+  const bust = `_t=${Date.now()}`
+  const sep = `?weeks=${weeks}`.includes('?') ? '&' : '?'
+  const url = `/api/calendar/slots?weeks=${weeks}&${bust}`
+  const { json } = await fetchJson(url, { ...options, cache: 'no-store' } as any)
   const data = json as SlotsResponse
   return data.slots as CalendarSlot[]
 }
 
 export async function fetchSlotsFull(weeks: number = 2, options: FetchOptions = {}): Promise<SlotsResponse> {
-  const { json } = await fetchJson(`/api/calendar/slots?weeks=${weeks}`, options)
+  const bust = `_t=${Date.now()}`
+  const url = `/api/calendar/slots?weeks=${weeks}&${bust}`
+  const { json } = await fetchJson(url, { ...options, cache: 'no-store' } as any)
   return json as SlotsResponse
 }
 
