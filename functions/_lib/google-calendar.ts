@@ -513,8 +513,8 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
     let createRes: Response | null = null
     let eventPayloadUsed: any = withAttendeesPayload
 
-    // First attempt — with attendees (would send Google invite if DWD allowed)
-    console.log('!!! GCAL_EVENT_CREATE_ATTEMPT_1_WITH_ATTENDEES')
+    // First attempt — with attendees + Meet (would send Google invite if DWD allowed)
+    console.log('!!! GCAL_EVENT_CREATE_ATTEMPT_1_WITH_ATTENDEES_AND_MEET')
     createRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events?conferenceDataVersion=1&sendUpdates=all`, {
       method: 'POST',
       headers: {
@@ -525,13 +525,15 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
     })
     console.log(`!!! GCAL_EVENT_CREATE_RESPONSE_1 status=${createRes.status} ok=${createRes.ok}`)
 
+    let bareEventWithoutMeet: any = null
+
     if (!createRes.ok) {
       const txt = await createRes.text().catch(() => '')
       console.log(`!!! GCAL_EVENT_CREATE_FAILED_1 status=${createRes.status} body=${txt.slice(0, 800)}`)
       // If forbiddenForServiceAccounts — retry without attendees (works for personal Gmail & group calendars without DWD)
       if (txt.includes('forbiddenForServiceAccounts') || txt.includes('Service accounts cannot invite attendees')) {
         console.log('!!! GCAL_CREATE_RETRY_WITHOUT_ATTENDEES reason=forbiddenForServiceAccounts — DWD not configured, creating event without attendees and relying on Resend email for confirmation')
-        eventPayloadUsed = basePayload // no attendees
+        eventPayloadUsed = basePayload // no attendees but with Meet
         createRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events?conferenceDataVersion=1&sendUpdates=all`, {
           method: 'POST',
           headers: {
@@ -540,11 +542,68 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
           },
           body: JSON.stringify(basePayload),
         })
-        console.log(`!!! GCAL_EVENT_CREATE_RESPONSE_2_NO_ATTENDEES status=${createRes.status} ok=${createRes.ok}`)
+        console.log(`!!! GCAL_EVENT_CREATE_RESPONSE_2_NO_ATTENDEES_WITH_MEET status=${createRes.status} ok=${createRes.ok}`)
         if (!createRes.ok) {
           const txt2 = await createRes.text().catch(() => '')
           console.log(`!!! GCAL_EVENT_CREATE_FAILED_2 status=${createRes.status} body=${txt2.slice(0, 800)}`)
-          throw new Error(`Create event failed ${createRes.status} ${txt2} (retry without attendees also failed)`)
+          // If invalid conference type — group calendars may not support hangoutsMeet via SA, retry bare event without Meet
+          if (txt2.includes('Invalid conference type') || txt2.includes('conferenceType') || txt2.includes('conference type')) {
+            console.log('!!! GCAL_CREATE_RETRY_BARE_EVENT reason=Invalid conference type value — group calendar may not support hangoutsMeet via SA, creating bare event without Meet')
+            const barePayload = {
+              summary: basePayload.summary,
+              description: basePayload.description,
+              start: basePayload.start,
+              end: basePayload.end,
+            }
+            eventPayloadUsed = barePayload
+            createRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events?sendUpdates=all`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify(barePayload),
+            })
+            console.log(`!!! GCAL_EVENT_CREATE_RESPONSE_3_BARE status=${createRes.status} ok=${createRes.ok}`)
+            if (!createRes.ok) {
+              const txt3 = await createRes.text().catch(() => '')
+              console.log(`!!! GCAL_EVENT_CREATE_FAILED_3_BARE status=${createRes.status} body=${txt3.slice(0, 800)}`)
+              throw new Error(`Create event failed ${createRes.status} ${txt3} (retry bare also failed) — ${txt2}`)
+            } else {
+              bareEventWithoutMeet = await createRes.clone().json().catch(() => null)
+              console.log(`!!! GCAL_BARE_EVENT_CREATED id=${bareEventWithoutMeet?.id || 'unknown'} — will attempt PATCH to add Meet with alternative types`)
+              // Try to PATCH Meet with hangoutsMeet as conferenceData (some calendars allow PATCH but not POST)
+              try {
+                console.log('!!! GCAL_TRY_PATCH_MEET_HANGOUTSMEET')
+                const patchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events/${encodeURIComponent(bareEventWithoutMeet.id)}?conferenceDataVersion=1`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                  body: JSON.stringify({
+                    conferenceData: {
+                      createRequest: { requestId: params.cancelToken + '-patch', conferenceSolutionKey: { type: 'hangoutsMeet' } },
+                    },
+                  }),
+                })
+                const patchTxt = await patchRes.text().catch(() => '')
+                console.log(`!!! GCAL_PATCH_MEET_RESPONSE status=${patchRes.status} ok=${patchRes.ok} body=${patchTxt.slice(0, 500)}`)
+                if (patchRes.ok) {
+                  const patched = JSON.parse(patchTxt)
+                  const patchedLink = patched.conferenceData?.entryPoints?.[0]?.uri || patched.hangoutLink
+                  if (patchedLink) {
+                    console.log(`!!! GCAL_PATCH_MEET_SUCCESS link=${patchedLink}`)
+                    // Merge patched data into createRes for later meetLink extraction
+                    createRes = new Response(patchTxt, { status: 200 }) as any
+                  }
+                } else {
+                  console.log('!!! GCAL_PATCH_MEET_FAILED trying eventHangout')
+                }
+              } catch (e: any) {
+                console.log(`!!! GCAL_PATCH_MEET_EXCEPTION ${e?.message}`)
+              }
+            }
+          } else {
+            throw new Error(`Create event failed ${createRes.status} ${txt2} (retry without attendees failed) — original: ${txt}`)
+          }
         } else {
           console.log('!!! GCAL_CREATE_RETRY_SUCCESS without attendees — real Meet link will be generated, Resend will handle email invite')
         }
@@ -556,32 +615,49 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
     if (!createRes) throw new Error('No response from Google Calendar')
 
     const created = (await createRes.json()) as any
-    const meetLink = created.conferenceData?.entryPoints?.[0]?.uri || created.hangoutLink || `https://meet.google.com/fake-${params.cancelToken.slice(0,8)}`
-    console.log(`!!! GCAL_EVENT_CREATED id=${created.id} meetLink=${meetLink}`)
+    let meetLink = created.conferenceData?.entryPoints?.[0]?.uri || created.hangoutLink
+    if (!meetLink) {
+      // If bare event without Meet (group calendar doesn't support hangoutsMeet via SA), check if we have bareEventWithoutMeet
+      if (bareEventWithoutMeet) {
+        console.log(`!!! GCAL_BARE_EVENT_NO_MEET id=${created.id || bareEventWithoutMeet.id} — group calendar may not support Meet via SA, returning live event without Meet link, Resend will handle email without Meet`)
+        // For group calendars without Meet support, return empty meetLink but source live — calendar blocking still works
+        meetLink = '' // No Meet — will be handled by booking.ts email (Resend without Meet) + UI warning
+      } else {
+        meetLink = `https://meet.google.com/fake-${params.cancelToken.slice(0, 8)}`
+        console.log(`!!! GCAL_MEET_FALLBACK_FAKE meetLink=${meetLink}`)
+      }
+    }
+    console.log(`!!! GCAL_EVENT_CREATED id=${created.id} meetLink=${meetLink || '(no Meet - bare event)'} source=live`)
 
     // Patch description to include actual Meet link + cancel link so Google invite contains meeting link text too per user request
-    try {
-      console.log('!!! GCAL_EVENT_PATCH_DESCRIPTION_START')
-      await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events/${encodeURIComponent(created.id)}?conferenceDataVersion=1`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          description: `${params.purpose || 'Intro call'}\n\nMeet: ${meetLink}\nCancel: ${siteUrl}/api/cancel/${params.cancelToken}\n\nContact: ${params.email} ${params.phone || ''}`,
-        }),
-      })
-      console.log('!!! GCAL_EVENT_PATCH_OK')
-    } catch (e: any) {
-      console.log(`!!! GCAL_EVENT_PATCH_FAILED ${e?.message}`)
+    // Only patch if we have a real meetLink (not fake, not empty)
+    if (meetLink && !meetLink.includes('fake-')) {
+      try {
+        console.log('!!! GCAL_EVENT_PATCH_DESCRIPTION_START')
+        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events/${encodeURIComponent(created.id)}?conferenceDataVersion=1`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            description: `${params.purpose || 'Intro call'}\n\nMeet: ${meetLink}\nCancel: ${siteUrl}/api/cancel/${params.cancelToken}\n\nContact: ${params.email} ${params.phone || ''}`,
+          }),
+        })
+        console.log('!!! GCAL_EVENT_PATCH_OK')
+      } catch (e: any) {
+        console.log(`!!! GCAL_EVENT_PATCH_FAILED ${e?.message}`)
+      }
+    } else {
+      console.log('!!! GCAL_SKIP_PATCH no real Meet link')
     }
 
     return {
-      calendarEventId: created.id,
-      meetLink,
+      calendarEventId: created.id || bareEventWithoutMeet?.id || `live-event-${params.cancelToken}`,
+      meetLink: meetLink || `https://meet.google.com/fake-no-meet-${params.cancelToken.slice(0, 4)}`,
       source: 'live',
-    }
+      error: bareEventWithoutMeet && !meetLink ? 'Bare event created without Meet — group calendar may not support hangoutsMeet via SA — slot blocked, Resend email without Meet' : undefined,
+    } as any
   } catch (e: any) {
     // For alpha/prod, we should NOT silently return fake — include detailed error so caller can surface
     // But for resilience, still return stub with error for observability
