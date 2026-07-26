@@ -137,13 +137,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
   try {
     const timeMin = new Date().toISOString()
     const timeMax = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString()
+    const calendarIds = [bookingId, personalId].filter((x): x is string => Boolean(x))
     const fbRes = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${roToken.accessToken}` },
       body: JSON.stringify({
         timeMin,
         timeMax,
-        items: [bookingId, personalId].filter(Boolean).map((id: string) => ({ id })),
+        items: calendarIds.map((id) => ({ id })),
       }),
     })
     const fbText = await fbRes.text()
@@ -199,6 +200,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
       aclJson = JSON.parse(aclText)
     } catch {}
     const saRule = aclJson.items?.find((r: any) => r.scope?.value === roToken.clientEmail || r.scope?.value?.includes('portfolio-calendar'))
+    type AclRole = 'freeBusyReader' | 'reader' | 'writer' | 'owner'
+    const roleMap: Record<AclRole, string> = {
+      freeBusyReader: 'See only free/busy (hide details) — GOOD for personal, BAD for booking (cannot create events)',
+      reader: 'See all event details — still cannot create events, need writer',
+      writer: 'Make changes and see all event details or Make changes to events — GOOD for booking (can create events with Meet)',
+      owner: 'Make changes and manage sharing — also GOOD for booking',
+    }
     result.checks.acl = {
       status: aclRes.status,
       ok: aclRes.ok,
@@ -208,12 +216,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
       allRoles: aclJson.items?.map((i: any) => ({ email: i.scope?.value, role: i.role })).slice(0, 10),
       error: !aclRes.ok ? aclText.slice(0, 800) : undefined,
       roleInterpretation: saRule
-        ? {
-            freeBusyReader: 'See only free/busy (hide details) — GOOD for personal, BAD for booking (cannot create events)',
-            reader: 'See all event details — still cannot create events, need writer',
-            writer: 'Make changes and see all event details or Make changes to events — GOOD for booking (can create events with Meet)',
-            owner: 'Make changes and manage sharing — also GOOD for booking',
-          }[saRule.role] || `Unknown role ${saRule.role}`
+        ? (roleMap[saRule.role as AclRole] || `Unknown role ${saRule.role}`)
         : 'No SA ACL rule found',
     }
   } catch (e: any) {
