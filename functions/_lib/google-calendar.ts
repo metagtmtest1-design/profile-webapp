@@ -1,3 +1,5 @@
+import { getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey } from './env'
+
 export interface WorkingHours {
   start: string // "09:00"
   end: string // "17:00"
@@ -232,13 +234,13 @@ export function getStubSlots(weeks: number = 2, excludeToday: boolean = false): 
 // Real FreeBusy via Service Account JWT (for slots endpoint)
 // This is used by slots.ts but stubbed when key missing
 export async function getFreeBusy(env: any): Promise<{ busyBlocks: BusyBlock[]; source: 'live' | 'stub'; error?: string }> {
-  const saKeyRaw = env?.GCAL_SERVICE_ACCOUNT_KEY
-  const bookingId = env?.BOOKING_CALENDAR_ID
-  const personalId = env?.PERSONAL_CALENDAR_ID
+  const saKeyRaw = getGcalServiceKey(env) || env?.GCAL_SERVICE_ACCOUNT_KEY
+  const bookingId = getBookingCalendarId(env) || env?.BOOKING_CALENDAR_ID || env?.BOOKING
+  const personalId = getPersonalCalendarId(env) || env?.PERSONAL_CALENDAR_ID || env?.PERSONAL
   const isStub = !saKeyRaw || env?.STUB === 'true' || env?.STUB_SLOTS === 'true' || env?.ENVIRONMENT === 'test' || env?.ENVIRONMENT === 'local'
 
   if (isStub) {
-    return { busyBlocks: getStubBusyBlocks(), source: 'stub' }
+    return { busyBlocks: getStubBusyBlocks(), source: 'stub', error: !saKeyRaw ? 'GCAL_SERVICE_ACCOUNT_KEY missing (checked aliases)' : undefined }
   }
 
   try {
@@ -351,5 +353,189 @@ export async function getFreeBusy(env: any): Promise<{ busyBlocks: BusyBlock[]; 
     }
   } catch (e: any) {
     return { busyBlocks: getStubBusyBlocks(), source: 'stub', error: e?.message }
+  }
+}
+
+export interface CreateEventParams {
+  firstName: string
+  lastName: string
+  email: string
+  phone?: string
+  purpose?: string
+  slot: { date: string; start: string; end: string; available?: boolean }
+  cancelToken: string
+  siteUrl?: string
+}
+
+export interface CreateEventResult {
+  calendarEventId: string
+  meetLink: string
+  source: 'live' | 'stub'
+  error?: string
+}
+
+export async function createBookingEvent(env: any, params: CreateEventParams): Promise<CreateEventResult> {
+  const saKeyRaw = getGcalServiceKey(env) || env?.GCAL_SERVICE_ACCOUNT_KEY
+  const bookingId = getBookingCalendarId(env) || env?.BOOKING_CALENDAR_ID || env?.BOOKING
+  const siteUrl = env?.SITE_URL || 'https://profile-webapp.pages.dev'
+  const envName = env?.ENVIRONMENT || ''
+  const isLocalOrTest = envName === 'local' || envName === 'test'
+  const isStubFlag = env?.STUB === 'true'
+
+  // Clear stub condition: only when explicitly told or missing key + local/test, or missing bookingId
+  const isStub = (!saKeyRaw && isLocalOrTest) || isStubFlag || envName === 'test' || envName === 'local'
+
+  if (!bookingId) {
+    // Missing booking calendar ID — this is critical, should NOT silently fake in alpha/prod
+    if (!isLocalOrTest && !isStubFlag) {
+      return {
+        calendarEventId: `missing-booking-id-${params.cancelToken}`,
+        meetLink: `https://meet.google.com/fake-missing-calendar-${params.cancelToken.slice(0, 4)}`,
+        source: 'stub',
+        error: `BOOKING_CALENDAR_ID not configured — checked aliases BOOKING_CALENDAR_ID, BOOKING, BOOKING_CALENDAR. Env: ${envName}`,
+      }
+    }
+    return {
+      calendarEventId: `stub-event-${params.cancelToken}`,
+      meetLink: `https://meet.google.com/fake-${params.cancelToken.slice(0, 8)}`,
+      source: 'stub',
+      error: 'BOOKING_CALENDAR_ID missing — stub',
+    }
+  }
+
+  if (isStub || !saKeyRaw) {
+    // Local/test or explicit STUB => return mock but include reason
+    return {
+      calendarEventId: `stub-event-${params.cancelToken}`,
+      meetLink: `https://meet.google.com/fake-${params.cancelToken.slice(0, 8)}`,
+      source: 'stub',
+      error: !saKeyRaw ? 'GCAL_SERVICE_ACCOUNT_KEY missing — stub' : 'STUB flag or local/test env',
+    }
+  }
+
+  try {
+    // Reuse JWT logic from getFreeBusy but with calendar.events scope
+    let saKey: any
+    if (typeof saKeyRaw === 'string') {
+      saKey = JSON.parse(saKeyRaw)
+    } else {
+      saKey = saKeyRaw
+    }
+
+    const now = Math.floor(Date.now() / 1000)
+    const header = { alg: 'RS256', typ: 'JWT' }
+    const payload = {
+      iss: saKey.client_email,
+      scope: 'https://www.googleapis.com/auth/calendar',
+      aud: saKey.token_uri || 'https://oauth2.googleapis.com/token',
+      iat: now,
+      exp: now + 3600,
+    }
+
+    const enc = (obj: any) => btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+    const pem = saKey.private_key
+    if (!pem) throw new Error('No private_key')
+    const pemBody = pem.replace(/-----BEGIN PRIVATE KEY-----/, '').replace(/-----END PRIVATE KEY-----/, '').replace(/\s/g, '')
+    const binaryDer = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0))
+    const cryptoKey = await crypto.subtle.importKey('pkcs8', binaryDer, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign'])
+    const headerB64 = enc(header)
+    const payloadB64 = enc(payload)
+    const data = new TextEncoder().encode(`${headerB64}.${payloadB64}`)
+    const sigBuf = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, data)
+    const sigArray = new Uint8Array(sigBuf)
+    let binary = ''
+    sigArray.forEach((b) => (binary += String.fromCharCode(b)))
+    const sigB64 = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+    const jwt = `${headerB64}.${payloadB64}.${sigB64}`
+
+    const tokenRes = await fetch(saKey.token_uri || 'https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+    })
+
+    if (!tokenRes.ok) throw new Error(`Token exchange failed ${tokenRes.status}`)
+    const tokenJson = (await tokenRes.json()) as any
+    const accessToken = tokenJson.access_token
+    if (!accessToken) throw new Error('No access token')
+
+    // Create event with Meet link auto via conferenceData
+    const eventPayload = {
+      summary: `Meeting with ${params.firstName} ${params.lastName}`,
+      description: `${params.purpose || 'Intro call'}\n\nContact: ${params.email} ${params.phone || ''}\n\nCancel: ${siteUrl}/api/cancel/${params.cancelToken}`,
+      start: { dateTime: params.slot.start, timeZone: TIMEZONE },
+      end: { dateTime: params.slot.end, timeZone: TIMEZONE },
+      attendees: [{ email: params.email, displayName: `${params.firstName} ${params.lastName}` }],
+      conferenceData: {
+        createRequest: {
+          requestId: params.cancelToken,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      },
+    }
+
+    const createRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events?conferenceDataVersion=1&sendUpdates=all`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(eventPayload),
+    })
+
+    if (!createRes.ok) {
+      const txt = await createRes.text().catch(() => '')
+      throw new Error(`Create event failed ${createRes.status} ${txt}`)
+    }
+
+    const created = (await createRes.json()) as any
+    const meetLink = created.conferenceData?.entryPoints?.[0]?.uri || created.hangoutLink || `https://meet.google.com/fake-${params.cancelToken.slice(0,8)}`
+
+    // Patch description to include actual Meet link + cancel link so Google invite contains meeting link text too per user request
+    try {
+      await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events/${encodeURIComponent(created.id)}?conferenceDataVersion=1`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          description: `${params.purpose || 'Intro call'}\n\nMeet: ${meetLink}\nCancel: ${siteUrl}/api/cancel/${params.cancelToken}\n\nContact: ${params.email} ${params.phone || ''}`,
+        }),
+      })
+    } catch {}
+
+    return {
+      calendarEventId: created.id,
+      meetLink,
+      source: 'live',
+    }
+  } catch (e: any) {
+    // For alpha/prod, we should NOT silently return fake — include detailed error so caller can surface
+    // But for resilience, still return stub with error for observability
+    const isLocal = env?.ENVIRONMENT === 'local' || env?.ENVIRONMENT === 'test'
+    const detailed = `createBookingEvent failed: ${e?.message || String(e)} — bookingId: ${bookingId ? 'present' : 'missing'}, env: ${env?.ENVIRONMENT}, hasKey: ${!!saKeyRaw}`
+    console.error(detailed)
+
+    // In prod/alpha, if we have key and bookingId, this is a real error (likely permission 403 or bad calendar ID)
+    // Return stub but caller (booking.ts) will surface gcalError
+    return {
+      calendarEventId: `stub-event-${params.cancelToken}`,
+      meetLink: `https://meet.google.com/fake-${params.cancelToken.slice(0, 8)}`,
+      source: 'stub',
+      error: detailed,
+    }
+  }
+}
+
+export function getDiagInfo(env: any) {
+  return {
+    bookingId: !!getBookingCalendarId(env),
+    bookingIdAlt: !!env?.BOOKING_CALENDAR_ID || !!env?.BOOKING,
+    personalId: !!getPersonalCalendarId(env),
+    gcalKey: !!getGcalServiceKey(env),
+    env: env?.ENVIRONMENT || 'unknown',
+    stubFlag: env?.STUB,
   }
 }
