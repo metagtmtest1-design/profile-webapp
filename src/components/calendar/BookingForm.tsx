@@ -5,7 +5,7 @@ import { generateIcsContent, downloadIcsFile } from '../../lib/ics'
 
 export interface BookingFormProps {
   slot: CalendarSlot
-  onSuccess: (data: { meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any }) => void
+  onSuccess: (data: { meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any; pending?: boolean }) => void
   onCancel?: () => void
 }
 
@@ -21,7 +21,8 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [confirmIntent, setConfirmIntent] = useState(false)
-  const [success, setSuccess] = useState<{ meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any } | null>(null)
+  const [success, setSuccess] = useState<{ meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any; pending?: boolean; message?: string; purpose?: string | null } | null>(null)
+  const [pending, setPending] = useState<{ email: string; dateTime: string; purpose?: string | null; message: string } | null>(null)
 
   // Load Turnstile widget — real token for alpha/prod, fake stub for local/test (so TDD not blocked)
   // Store widgetId for reset
@@ -124,7 +125,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   }
 
   const doBooking = async (intentOverride?: boolean) => {
-    console.log(`!!! BOOKING_FORM_DO_BOOKING_START firstName=${firstName} email=${email} slot=${slot.start} confirmIntent=${intentOverride ?? confirmIntent} hasToken=${!!turnstileToken}`)
+    console.log(`!!! BOOKING_FORM_DO_BOOKING_START firstName=${firstName} email=${email} slot=${slot.start} purpose=${purpose || 'none'} confirmIntent=${intentOverride ?? confirmIntent} hasToken=${!!turnstileToken}`)
     const v = validate()
     if (v) {
       console.log(`!!! BOOKING_FORM_VALIDATION_FAILED ${v}`)
@@ -133,6 +134,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
     }
     setLoading(true)
     setError(null)
+    setPending(null)
     try {
       console.log('!!! BOOKING_FORM_API_CALL_START')
       const result = await createBooking({
@@ -145,7 +147,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         turnstileToken,
         confirmIntent: intentOverride ?? confirmIntent,
       })
-      console.log(`!!! BOOKING_FORM_API_RESULT warning=${!!(result as any).warning} meetLink=${result.meetLink} source=${result.source} gcalError=${result.gcalError || 'none'} emailSuccess=${result.emailResult?.success}`)
+      console.log(`!!! BOOKING_FORM_API_RESULT warning=${!!(result as any).warning} pending=${!!(result as any).pending} meetLink=${result.meetLink} source=${result.source} gcalError=${result.gcalError || 'none'} emailSuccess=${result.emailResult?.success}`)
       // Handle duplicate warning same email this week — token is consumed by first verify, need new token for confirm
       if ((result as any).warning) {
         console.log(`!!! BOOKING_FORM_DUPLICATE_WARNING ${(result as any).warning}`)
@@ -155,7 +157,18 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         resetTurnstile()
         return null
       }
-      console.log(`!!! BOOKING_FORM_SUCCESS meetLink=${result.meetLink} source=${result.source}`)
+      // Double opt-in pending — show check email message per requirement
+      if ((result as any).pending) {
+        console.log(`!!! BOOKING_FORM_PENDING email=${(result as any).email} dateTime=${result.dateTime} purpose=${(result as any).purpose || 'none'}`)
+        setPending({
+          email: (result as any).email || email,
+          dateTime: (result as any).dateTime,
+          purpose: (result as any).purpose,
+          message: (result as any).message || `Check your email (${email}) to confirm`,
+        })
+        return result
+      }
+      console.log(`!!! BOOKING_FORM_SUCCESS meetLink=${result.meetLink} source=${result.source} purpose=${purpose}`)
       setSuccess({
         meetLink: result.meetLink,
         dateTime: result.dateTime,
@@ -163,6 +176,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         source: result.source,
         gcalError: result.gcalError,
         emailResult: result.emailResult,
+        purpose: purpose || null,
       })
       onSuccess({
         meetLink: result.meetLink,
@@ -171,6 +185,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         source: result.source,
         gcalError: result.gcalError,
         emailResult: result.emailResult,
+        pending: false,
       })
       return result
     } catch (err: any) {
@@ -206,12 +221,31 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
     await doBooking(true)
   }
 
+  if (pending) {
+    return (
+      <div className="card rounded-2xl p-6 bg-blue-50 border-blue-300">
+        <h3 className="font-bold text-lg mb-2">Check your email 📧</h3>
+        <p className="text-sm mb-2">{pending.message}</p>
+        <p className="text-sm mb-2">Email: <strong>{pending.email}</strong></p>
+        <p className="text-sm mb-2">Date: {pending.dateTime}</p>
+        {pending.purpose && <p className="text-sm mb-3">Purpose: <strong>{pending.purpose}</strong> — will be included in calendar invite</p>}
+        <p className="text-xs text-gray-600 mb-3">We sent a confirmation link that expires in 30 minutes. Click it to schedule the Google Calendar event with Meet link. Purpose will be in invite.</p>
+        <p className="text-xs text-gray-500">Didn't get email? Check spam, or try again. For Resend test mode onboarding@resend.dev, only your own verified email works.</p>
+        {onCancel && (
+          <button onClick={() => { setPending(null); resetTurnstile(); }} className="mt-4 px-6 py-3 border rounded-full text-sm font-medium hover:bg-white">
+            Back
+          </button>
+        )}
+      </div>
+    )
+  }
+
   if (success) {
     const isFakeMeet = success.meetLink.includes('fake-')
     const handleDownloadIcs = () => {
       const ics = generateIcsContent({
         title: `Meeting — ${firstName} ${lastName}`,
-        description: `${purpose || 'Intro call'}\nMeet: ${success.meetLink}\nCancel: ${success.cancelUrl}`,
+        description: `${purpose || success.purpose || 'Intro call'}\nMeet: ${success.meetLink}\nCancel: ${success.cancelUrl}\nPurpose: ${purpose || success.purpose || ''}`,
         location: success.meetLink,
         start: slot.start,
         end: slot.end,
@@ -225,6 +259,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
       <div className="card rounded-2xl p-6 bg-green-50 border-green-300">
         <h3 className="font-bold text-lg mb-2">Meeting Confirmed ✅</h3>
         <p className="text-sm mb-2">Date: {success.dateTime}</p>
+        {(success as any).purpose && <p className="text-sm mb-2">Purpose: <strong>{(success as any).purpose}</strong> — included in calendar invite</p>}
         <p className="text-sm mb-3">
           Meet: <a href={success.meetLink} className="underline" target="_blank" rel="noopener noreferrer">{success.meetLink}</a>
         </p>

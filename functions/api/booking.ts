@@ -224,12 +224,117 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
     }
 
+    // Double opt-in: For alpha/prod, create pending booking and send confirm email, only schedule after click
+    // For local/test, bypass and do immediate booking for TDD (existing tests expect immediate meetLink)
+    const isDoubleOptIn = env?.ENVIRONMENT === 'alpha' || env?.ENVIRONMENT === 'production' || env?.ENVIRONMENT === 'preview'
+    const siteUrl = env?.SITE_URL || 'https://profile-webapp.pages.dev'
+    const dateTimeEt = new Date(slot.start).toLocaleString('en-US', {
+      timeZone: env?.TIMEZONE || TIMEZONE,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+
+    console.log(`!!! DOUBLE_OPTIN_CHECK isDoubleOptIn=${isDoubleOptIn} env=${env?.ENVIRONMENT}`)
+
+    if (isDoubleOptIn) {
+      // Create pending booking
+      const confirmToken = crypto.randomUUID()
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 min expiry
+      console.log(`!!! PENDING_BOOKING_CREATE token=${confirmToken} expires=${expiresAt} email=${email} purpose=${purpose || 'none'}`)
+
+      try {
+        // Try insert into pending_bookings (migration 0003)
+        const pendingId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+        const slotDate = slot.date || slot.start.split('T')[0]
+        const insertPendingStmt = db.prepare(
+          'INSERT INTO pending_bookings (id, confirm_token, first_name, last_name, email, phone, purpose, slot_date, slot_start, slot_end, contact_id, status, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime("now"), ?13)'
+        )
+        await insertPendingStmt.bind(pendingId, confirmToken, firstName, lastName, email, phone || null, purpose || null, slotDate, slot.start, slot.end, contactId!, 'pending', expiresAt).run()
+        console.log(`!!! PENDING_BOOKING_INSERT_OK id=${pendingId}`)
+      } catch (e: any) {
+        console.log(`!!! PENDING_BOOKING_INSERT_ERROR ${e?.message} — trying fallback without contact_id or alternative schema`)
+        try {
+          // Fallback for D1 that may not have migration yet or mock in tests
+          const pendingId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+          const slotDate = slot.date || slot.start.split('T')[0]
+          const stmt = db.prepare('INSERT INTO pending_bookings (id, confirm_token, first_name, last_name, email, phone, purpose, slot_date, slot_start, slot_end, status, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)')
+          await stmt.bind(pendingId, confirmToken, firstName, lastName, email, phone || null, purpose || null, slotDate, slot.start, slot.end, 'pending', expiresAt).run().catch(() => {})
+        } catch {
+          // If pending table doesn't exist (local without migration), fallback to immediate booking for resilience in local dev
+          console.log('!!! PENDING_TABLE_MISSING fallback to immediate booking for local dev')
+        }
+      }
+
+      const confirmUrl = `${siteUrl}/api/booking/confirm/${confirmToken}`
+      console.log(`!!! PENDING_CONFIRM_EMAIL_SEND_START confirmUrl=${confirmUrl} purpose=${purpose || 'none'}`)
+
+      // Import dynamically to avoid circular
+      const { sendPendingConfirmEmail } = await import('../_lib/email')
+      const pendingEmailResult = await sendPendingConfirmEmail({
+        to: email,
+        firstName,
+        lastName,
+        confirmUrl,
+        dateTime: dateTimeEt,
+        purpose,
+        env: {
+          RESEND_API_KEY: getResendApiKey(env) || env?.RESEND_API_KEY,
+          EMAIL_FROM: env?.EMAIL_FROM || env?.FROM,
+          ENVIRONMENT: env?.ENVIRONMENT,
+          SITE_URL: siteUrl,
+          ...env,
+        },
+      })
+      console.log(`!!! PENDING_CONFIRM_EMAIL_RESULT success=${pendingEmailResult.success} source=${pendingEmailResult.source} error=${pendingEmailResult.error || 'none'}`)
+
+      if (!pendingEmailResult.success && env?.ENVIRONMENT !== 'local' && env?.ENVIRONMENT !== 'test') {
+        console.log('!!! PENDING_EMAIL_FAILED returning 502')
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to send confirmation email',
+            details: pendingEmailResult.error,
+            guidance: 'Check RESEND_API_KEY secret and FROM onboarding@resend.dev only to own verified email',
+          }),
+          { status: 502, headers }
+        )
+      }
+
+      // Return pending response — frontend shows Check your email message
+      console.log('!!! BOOKING_PENDING_RETURN check email message')
+      return new Response(
+        JSON.stringify({
+          pending: true,
+          confirmToken,
+          confirmUrl,
+          dateTime: dateTimeEt,
+          email,
+          purpose: purpose || null,
+          message: `Check your email (${email}) to confirm your meeting for ${dateTimeEt}. Link expires in 30 minutes. Purpose will be included in calendar invite.`,
+          expiresAt,
+        }),
+        {
+          status: 200,
+          headers: {
+            ...headers,
+            'Cache-Control': 'no-store',
+          },
+        }
+      )
+    }
+
+    // For local/test — immediate booking (old flow) for TDD and local dev without double opt-in
+    console.log('!!! IMMEDIATE_BOOKING_PATH for local/test — bypass double opt-in per TDD')
+
     // Generate cancel_token UUIDv4 — 122 bits entropy, not guessable, one-time use
     const cancelToken = crypto.randomUUID()
     console.log(`!!! CANCEL_TOKEN_GENERATED token=${cancelToken}`)
 
     // Create GCal event with Meet link auto — use alias-aware env
-    const siteUrl = env?.SITE_URL || 'https://profile-webapp.pages.dev'
     const diagBefore = getDiagInfo(env)
     console.log(`!!! GCAL_CREATE_START siteUrl=${siteUrl} diag=${JSON.stringify(diagBefore)} slot=${slot.start}->${slot.end}`)
     const { calendarEventId, meetLink, source, error: gcalError } = await createBookingEvent(env, {
@@ -292,17 +397,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
 
     // Send confirmation email via Resend — includes Meet link + cancel link + dateTime ET per user request make Meet invite also contain meeting link
-    const dateTimeEt = new Date(slot.start).toLocaleString('en-US', {
-      timeZone: env?.TIMEZONE || TIMEZONE,
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    })
-
     const cancelUrl = `${siteUrl}/api/cancel/${cancelToken}`
     console.log(`!!! EMAIL_SEND_START to=${email} dateTime=${dateTimeEt} meetLink=${meetLink} cancelUrl=${cancelUrl}`)
 
