@@ -75,16 +75,14 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
     return null
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const doBooking = async (intentOverride?: boolean) => {
     const v = validate()
     if (v) {
       setError(v)
-      return
+      return null
     }
     setLoading(true)
     setError(null)
-    setWarning(null)
     try {
       const result = await createBooking({
         firstName,
@@ -94,17 +92,14 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         purpose: purpose || undefined,
         slot,
         turnstileToken,
-        confirmIntent,
+        confirmIntent: intentOverride ?? confirmIntent,
       })
-
       // Handle duplicate warning same email this week
       if ((result as any).warning) {
         setWarning((result as any).warning)
         setConfirmIntent(true)
-        setLoading(false)
-        return
+        return null
       }
-
       setSuccess({
         meetLink: result.meetLink,
         dateTime: result.dateTime,
@@ -121,12 +116,28 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         gcalError: result.gcalError,
         emailResult: result.emailResult,
       })
+      return result
     } catch (err: any) {
       const msg = err.body?.error || err.message || 'Booking failed'
       setError(msg)
+      return null
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setWarning(null)
+    await doBooking()
+  }
+
+  const handleConfirmAndBookAgain = async () => {
+    // User confirms intent to book again this week — immediately rebook with confirmIntent=true
+    setConfirmIntent(true)
+    setWarning(null)
+    setError(null)
+    await doBooking(true)
   }
 
   if (success) {
@@ -210,9 +221,14 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
           <div className="font-semibold">Confirm intent?</div>
           <div>{warning}</div>
           <div className="text-xs mt-1">You already booked this week. Confirm to book again.</div>
-          <button type="button" onClick={() => setConfirmIntent(true)} className="mt-2 px-3 py-1 bg-black text-white rounded-full text-xs">
-            Confirm intent and book again
-          </button>
+          <div className="flex gap-2 mt-2">
+            <button type="button" onClick={handleConfirmAndBookAgain} disabled={loading} className="px-4 py-2 bg-black text-white rounded-full text-xs font-semibold hover:bg-gray-800 disabled:opacity-50">
+              {loading ? 'Booking…' : 'Confirm and book again'}
+            </button>
+            <button type="button" onClick={() => { setWarning(null); setConfirmIntent(false); }} className="px-3 py-2 border rounded-full text-xs bg-white hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
