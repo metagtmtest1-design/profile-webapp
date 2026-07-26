@@ -134,3 +134,66 @@ export async function fetchSlotsFull(weeks: number = 2, options: FetchOptions = 
   const { json } = await fetchJson(`/api/calendar/slots?weeks=${weeks}`, options)
   return json as SlotsResponse
 }
+
+export interface BookingPayload {
+  firstName: string
+  lastName: string
+  email: string
+  phone?: string
+  purpose?: string
+  slot: CalendarSlot | { date?: string; start: string; end: string }
+  turnstileToken?: string
+  confirmIntent?: boolean
+}
+
+export interface BookingResponse {
+  meetLink: string
+  dateTime: string
+  cancelUrl: string
+  cancelToken?: string
+  calendarEventId?: string
+  source?: string
+  warning?: string
+  confirmIntent?: boolean
+  duplicateWarning?: boolean
+}
+
+export async function createBooking(payload: BookingPayload, options: FetchOptions = {}): Promise<BookingResponse> {
+  const controller = new AbortController()
+  const timeoutMs = options.timeoutMs ?? 8000
+  const timeout = setTimeout(() => controller.abort(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)
+  if (options.signal) {
+    options.signal.addEventListener('abort', () => controller.abort(options.signal!.reason))
+  }
+  try {
+    const res = await fetch('/api/booking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        email: payload.email,
+        phone: payload.phone,
+        purpose: payload.purpose,
+        slot: payload.slot,
+        turnstileToken: payload.turnstileToken,
+        confirmIntent: payload.confirmIntent,
+      }),
+      signal: controller.signal,
+    })
+    const j = await res.json().catch(() => null)
+    if (!res.ok) {
+      throw new ApiError(`Request failed with ${res.status}`, res.status, j)
+    }
+    if (!j) throw new ApiError('Failed to parse booking response', res.status)
+    return j as BookingResponse
+  } catch (e: any) {
+    if (e instanceof ApiError) throw e
+    if (e?.name === 'AbortError' || e?.message?.toLowerCase().includes('abort') || e?.message?.includes('timeout')) {
+      throw new Error(`Booking timeout after ${timeoutMs}ms: ${e.message}`)
+    }
+    throw new Error(`Network error: ${e.message || String(e)}`)
+  } finally {
+    clearTimeout(timeout)
+  }
+}
