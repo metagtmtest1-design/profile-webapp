@@ -30,12 +30,14 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   const renderTurnstile = React.useCallback(() => {
     const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     if (isLocalHost) {
+      console.log('!!! TURNSTILE_FORM_LOCALHOST fake token')
       setTurnstileToken('fake-token-for-test')
       return true
     }
     const siteKey = (window as any)?.TURNSTILE_SITE_KEY || '0x4AAAAAAD8-3h6x-RUDasMf'
     if (typeof window !== 'undefined' && (window as any).turnstile) {
       try {
+        console.log(`!!! TURNSTILE_FORM_RENDER_START siteKey=${siteKey}`)
         const existing = document.querySelector('#turnstile-widget')
         if (existing) existing.innerHTML = ''
         // Reset previous if any
@@ -46,33 +48,50 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         }
         const id = (window as any).turnstile.render('#turnstile-widget', {
           sitekey: siteKey,
-          callback: (token: string) => setTurnstileToken(token),
-          'error-callback': () => setTurnstileToken(''),
-          'expired-callback': () => setTurnstileToken(''),
+          callback: (token: string) => {
+            console.log(`!!! TURNSTILE_FORM_CALLBACK tokenLen=${token.length}`)
+            setTurnstileToken(token)
+          },
+          'error-callback': () => {
+            console.log('!!! TURNSTILE_FORM_ERROR_CALLBACK')
+            setTurnstileToken('')
+          },
+          'expired-callback': () => {
+            console.log('!!! TURNSTILE_FORM_EXPIRED_CALLBACK')
+            setTurnstileToken('')
+          },
         })
         widgetIdRef.current = id
+        console.log(`!!! TURNSTILE_FORM_RENDERED widgetId=${String(id)}`)
         return true
-      } catch {
+      } catch (e: any) {
+        console.log(`!!! TURNSTILE_FORM_RENDER_FAILED ${e?.message}`)
         return false
       }
     }
+    console.log('!!! TURNSTILE_FORM_NOT_READY window.turnstile missing')
     return false
   }, [])
 
   const resetTurnstile = React.useCallback(() => {
+    console.log('!!! TURNSTILE_FORM_RESET_START')
     setTurnstileToken('')
     const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     if (isLocalHost) {
+      console.log('!!! TURNSTILE_FORM_RESET_LOCALHOST fake token')
       setTurnstileToken('fake-token-for-test')
       return
     }
     try {
       if (widgetIdRef.current !== null && (window as any)?.turnstile) {
+        console.log(`!!! TURNSTILE_FORM_RESET widgetId=${String(widgetIdRef.current)}`)
         ;(window as any).turnstile.reset(widgetIdRef.current)
       } else {
+        console.log('!!! TURNSTILE_FORM_RESET_NO_ID re-render')
         renderTurnstile()
       }
-    } catch {
+    } catch (e: any) {
+      console.log(`!!! TURNSTILE_FORM_RESET_FAILED ${e?.message} fallback re-render`)
       // Fallback re-render
       renderTurnstile()
     }
@@ -105,14 +124,17 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
   }
 
   const doBooking = async (intentOverride?: boolean) => {
+    console.log(`!!! BOOKING_FORM_DO_BOOKING_START firstName=${firstName} email=${email} slot=${slot.start} confirmIntent=${intentOverride ?? confirmIntent} hasToken=${!!turnstileToken}`)
     const v = validate()
     if (v) {
+      console.log(`!!! BOOKING_FORM_VALIDATION_FAILED ${v}`)
       setError(v)
       return null
     }
     setLoading(true)
     setError(null)
     try {
+      console.log('!!! BOOKING_FORM_API_CALL_START')
       const result = await createBooking({
         firstName,
         lastName,
@@ -123,14 +145,17 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         turnstileToken,
         confirmIntent: intentOverride ?? confirmIntent,
       })
+      console.log(`!!! BOOKING_FORM_API_RESULT warning=${!!(result as any).warning} meetLink=${result.meetLink} source=${result.source} gcalError=${result.gcalError || 'none'} emailSuccess=${result.emailResult?.success}`)
       // Handle duplicate warning same email this week — token is consumed by first verify, need new token for confirm
       if ((result as any).warning) {
+        console.log(`!!! BOOKING_FORM_DUPLICATE_WARNING ${(result as any).warning}`)
         setWarning((result as any).warning)
         setConfirmIntent(true)
         // Turnstile tokens are single-use (Cloudflare invalidates after siteverify) — reset for confirm flow
         resetTurnstile()
         return null
       }
+      console.log(`!!! BOOKING_FORM_SUCCESS meetLink=${result.meetLink} source=${result.source}`)
       setSuccess({
         meetLink: result.meetLink,
         dateTime: result.dateTime,
@@ -150,25 +175,30 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
       return result
     } catch (err: any) {
       const msg = err.body?.error || err.message || 'Booking failed'
+      console.log(`!!! BOOKING_FORM_ERROR ${msg} body=${JSON.stringify(err.body || {}).slice(0, 300)}`)
       const bodyStr = JSON.stringify(err.body || {})
       setError(msg)
       // If Turnstile failed (token reused/expired), reset for retry
       if (bodyStr.toLowerCase().includes('turnstile') || msg.toLowerCase().includes('turnstile')) {
+        console.log('!!! BOOKING_FORM_TURNSTILE_FAIL_RESET')
         resetTurnstile()
       }
       return null
     } finally {
       setLoading(false)
+      console.log('!!! BOOKING_FORM_DO_BOOKING_END')
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('!!! BOOKING_FORM_HANDLE_SUBMIT')
     e.preventDefault()
     setWarning(null)
     await doBooking()
   }
 
   const handleConfirmAndBookAgain = async () => {
+    console.log('!!! BOOKING_FORM_CONFIRM_AND_BOOK_AGAIN_CLICK')
     // User confirms intent to book again this week — immediately rebook with confirmIntent=true
     setConfirmIntent(true)
     setWarning(null)

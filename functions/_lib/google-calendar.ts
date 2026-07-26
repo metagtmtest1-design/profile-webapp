@@ -239,7 +239,10 @@ export async function getFreeBusy(env: any): Promise<{ busyBlocks: BusyBlock[]; 
   const personalId = getPersonalCalendarId(env) || env?.PERSONAL_CALENDAR_ID || env?.PERSONAL
   const isStub = !saKeyRaw || env?.STUB === 'true' || env?.STUB_SLOTS === 'true' || env?.ENVIRONMENT === 'test' || env?.ENVIRONMENT === 'local'
 
+  console.log(`!!! FREEBUSY_START env=${env?.ENVIRONMENT} hasKey=${!!saKeyRaw} bookingId=${bookingId ? bookingId.slice(0, 8) + '...' : 'missing'} personalId=${personalId ? 'present' : 'missing'} isStub=${isStub}`)
+
   if (isStub) {
+    console.log(`!!! FREEBUSY_STUB reason=${!saKeyRaw ? 'GCAL key missing' : `STUB flag or env ${env?.ENVIRONMENT}`} env=${env?.ENVIRONMENT}`)
     return { busyBlocks: getStubBusyBlocks(), source: 'stub', error: !saKeyRaw ? 'GCAL_SERVICE_ACCOUNT_KEY missing (checked aliases)' : undefined }
   }
 
@@ -316,12 +319,15 @@ export async function getFreeBusy(env: any): Promise<{ busyBlocks: BusyBlock[]; 
 
       const tokenJson = (await tokenRes.json()) as any
       const accessToken = tokenJson.access_token
+      console.log(`!!! FREEBUSY_TOKEN_EXCHANGE_OK hasToken=${!!accessToken}`)
       if (!accessToken) throw new Error('No access token')
 
       // FreeBusy query
       const timeMin = new Date().toISOString()
       const timeMax = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString() // 2 weeks
+      console.log(`!!! FREEBUSY_QUERY_START timeMin=${timeMin} timeMax=${timeMax}`)
 
+      const calendarIds = [bookingId, personalId].filter((x): x is string => Boolean(x))
       const fbRes = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
         method: 'POST',
         headers: {
@@ -331,12 +337,16 @@ export async function getFreeBusy(env: any): Promise<{ busyBlocks: BusyBlock[]; 
         body: JSON.stringify({
           timeMin,
           timeMax,
-          items: [bookingId, personalId].filter(Boolean).map((id: string) => ({ id })),
+          items: calendarIds.map((id) => ({ id })),
         }),
       })
 
+      console.log(`!!! FREEBUSY_QUERY_RESPONSE status=${fbRes.status} ok=${fbRes.ok}`)
+
       if (!fbRes.ok) {
-        throw new Error(`FreeBusy failed ${fbRes.status}`)
+        const txt = await fbRes.text().catch(() => '')
+        console.log(`!!! FREEBUSY_FAILED status=${fbRes.status} body=${txt.slice(0, 300)}`)
+        throw new Error(`FreeBusy failed ${fbRes.status} ${txt.slice(0, 200)}`)
       }
 
       const fbJson = (await fbRes.json()) as any
@@ -345,13 +355,16 @@ export async function getFreeBusy(env: any): Promise<{ busyBlocks: BusyBlock[]; 
         const busy = fbJson.calendars[calId].busy || []
         busy.forEach((b: any) => busyBlocks.push({ start: b.start, end: b.end }))
       }
+      console.log(`!!! FREEBUSY_SUCCESS busyBlocks=${busyBlocks.length} calendars=${Object.keys(fbJson.calendars || {}).join(',')}`)
 
       return { busyBlocks, source: 'live' }
     } catch (cryptoErr: any) {
+      console.log(`!!! FREEBUSY_CRYPTO_ERROR ${cryptoErr?.message}`)
       // Fallback to stub if crypto or fetch fails (local dev, test)
       return { busyBlocks: getStubBusyBlocks(), source: 'stub', error: cryptoErr?.message }
     }
   } catch (e: any) {
+    console.log(`!!! FREEBUSY_OUTER_ERROR ${e?.message}`)
     return { busyBlocks: getStubBusyBlocks(), source: 'stub', error: e?.message }
   }
 }
@@ -385,7 +398,10 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
   // Clear stub condition: only when explicitly told or missing key + local/test, or missing bookingId
   const isStub = (!saKeyRaw && isLocalOrTest) || isStubFlag || envName === 'test' || envName === 'local'
 
+  console.log(`!!! GCAL_CREATE_EVENT_START env=${envName} hasKey=${!!saKeyRaw} bookingId=${bookingId ? bookingId.slice(0, 8) + '...' : 'missing'} isStub=${isStub} isLocalOrTest=${isLocalOrTest} cancelToken=${params.cancelToken} slot=${params.slot.start}`)
+
   if (!bookingId) {
+    console.log(`!!! GCAL_CREATE_FAIL_NO_BOOKING_ID env=${envName}`)
     // Missing booking calendar ID — this is critical, should NOT silently fake in alpha/prod
     if (!isLocalOrTest && !isStubFlag) {
       return {
@@ -404,6 +420,7 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
   }
 
   if (isStub || !saKeyRaw) {
+    console.log(`!!! GCAL_CREATE_STUB isStub=${isStub} hasKey=${!!saKeyRaw} reason=${!saKeyRaw ? 'key missing' : isStubFlag ? 'STUB flag' : 'local/test env'}`)
     // Local/test or explicit STUB => return mock but include reason
     return {
       calendarEventId: `stub-event-${params.cancelToken}`,
@@ -414,6 +431,7 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
   }
 
   try {
+    console.log('!!! GCAL_CREATE_PARSE_SA_KEY_START')
     // Reuse JWT logic from getFreeBusy but with calendar.events scope
     let saKey: any
     if (typeof saKeyRaw === 'string') {
@@ -421,6 +439,7 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
     } else {
       saKey = saKeyRaw
     }
+    console.log(`!!! GCAL_SA_PARSED email=${saKey.client_email}`)
 
     const now = Math.floor(Date.now() / 1000)
     const header = { alg: 'RS256', typ: 'JWT' }
@@ -438,6 +457,7 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
     if (!pem) throw new Error('No private_key')
     const pemBody = pem.replace(/-----BEGIN PRIVATE KEY-----/, '').replace(/-----END PRIVATE KEY-----/, '').replace(/\s/g, '')
     const binaryDer = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0))
+    console.log('!!! GCAL_IMPORT_PRIVATE_KEY')
     const cryptoKey = await crypto.subtle.importKey('pkcs8', binaryDer, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign'])
     const headerB64 = enc(header)
     const payloadB64 = enc(payload)
@@ -448,19 +468,28 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
     sigArray.forEach((b) => (binary += String.fromCharCode(b)))
     const sigB64 = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
     const jwt = `${headerB64}.${payloadB64}.${sigB64}`
+    console.log('!!! GCAL_JWT_SIGNED')
 
+    console.log('!!! GCAL_TOKEN_EXCHANGE_START')
     const tokenRes = await fetch(saKey.token_uri || 'https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
     })
+    console.log(`!!! GCAL_TOKEN_EXCHANGE_RESPONSE status=${tokenRes.status} ok=${tokenRes.ok}`)
 
-    if (!tokenRes.ok) throw new Error(`Token exchange failed ${tokenRes.status}`)
+    if (!tokenRes.ok) {
+      const txt = await tokenRes.text().catch(() => '')
+      console.log(`!!! GCAL_TOKEN_EXCHANGE_FAILED status=${tokenRes.status} body=${txt.slice(0, 300)}`)
+      throw new Error(`Token exchange failed ${tokenRes.status} ${txt.slice(0, 200)}`)
+    }
     const tokenJson = (await tokenRes.json()) as any
     const accessToken = tokenJson.access_token
+    console.log(`!!! GCAL_ACCESS_TOKEN_OBTAINED hasToken=${!!accessToken}`)
     if (!accessToken) throw new Error('No access token')
 
     // Create event with Meet link auto via conferenceData
+    console.log(`!!! GCAL_EVENT_CREATE_START summary=Meeting with ${params.firstName} start=${params.slot.start} end=${params.slot.end} bookingId=${bookingId.slice(0, 8)}...`)
     const eventPayload = {
       summary: `Meeting with ${params.firstName} ${params.lastName}`,
       description: `${params.purpose || 'Intro call'}\n\nContact: ${params.email} ${params.phone || ''}\n\nCancel: ${siteUrl}/api/cancel/${params.cancelToken}`,
@@ -483,17 +512,21 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
       },
       body: JSON.stringify(eventPayload),
     })
+    console.log(`!!! GCAL_EVENT_CREATE_RESPONSE status=${createRes.status} ok=${createRes.ok}`)
 
     if (!createRes.ok) {
       const txt = await createRes.text().catch(() => '')
+      console.log(`!!! GCAL_EVENT_CREATE_FAILED status=${createRes.status} body=${txt.slice(0, 500)}`)
       throw new Error(`Create event failed ${createRes.status} ${txt}`)
     }
 
     const created = (await createRes.json()) as any
     const meetLink = created.conferenceData?.entryPoints?.[0]?.uri || created.hangoutLink || `https://meet.google.com/fake-${params.cancelToken.slice(0,8)}`
+    console.log(`!!! GCAL_EVENT_CREATED id=${created.id} meetLink=${meetLink}`)
 
     // Patch description to include actual Meet link + cancel link so Google invite contains meeting link text too per user request
     try {
+      console.log('!!! GCAL_EVENT_PATCH_DESCRIPTION_START')
       await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingId)}/events/${encodeURIComponent(created.id)}?conferenceDataVersion=1`, {
         method: 'PATCH',
         headers: {
@@ -504,7 +537,10 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
           description: `${params.purpose || 'Intro call'}\n\nMeet: ${meetLink}\nCancel: ${siteUrl}/api/cancel/${params.cancelToken}\n\nContact: ${params.email} ${params.phone || ''}`,
         }),
       })
-    } catch {}
+      console.log('!!! GCAL_EVENT_PATCH_OK')
+    } catch (e: any) {
+      console.log(`!!! GCAL_EVENT_PATCH_FAILED ${e?.message}`)
+    }
 
     return {
       calendarEventId: created.id,
@@ -514,8 +550,8 @@ export async function createBookingEvent(env: any, params: CreateEventParams): P
   } catch (e: any) {
     // For alpha/prod, we should NOT silently return fake — include detailed error so caller can surface
     // But for resilience, still return stub with error for observability
-    const isLocal = env?.ENVIRONMENT === 'local' || env?.ENVIRONMENT === 'test'
     const detailed = `createBookingEvent failed: ${e?.message || String(e)} — bookingId: ${bookingId ? 'present' : 'missing'}, env: ${env?.ENVIRONMENT}, hasKey: ${!!saKeyRaw}`
+    console.log(`!!! GCAL_CREATE_EXCEPTION ${detailed}`)
     console.error(detailed)
 
     // In prod/alpha, if we have key and bookingId, this is a real error (likely permission 403 or bad calendar ID)
