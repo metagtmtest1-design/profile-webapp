@@ -224,9 +224,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
     }
 
-    // Double opt-in: For alpha/prod, create pending booking and send confirm email, only schedule after click
-    // For local/test, bypass and do immediate booking for TDD (existing tests expect immediate meetLink)
-    const isDoubleOptIn = env?.ENVIRONMENT === 'alpha' || env?.ENVIRONMENT === 'production' || env?.ENVIRONMENT === 'preview'
+    // Immediate booking (original way) — no confirmation click required per user request
+    // Keeps purpose in calendar invite, real Meet via OAuth if configured, slot fix, max limit disabled, !!! logs
+    // For double opt-in, set DOUBLE_OPTIN_ENABLED=true (not used now)
     const siteUrl = env?.SITE_URL || 'https://profile-webapp.pages.dev'
     const dateTimeEt = new Date(slot.start).toLocaleString('en-US', {
       timeZone: env?.TIMEZONE || TIMEZONE,
@@ -239,109 +239,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       hour12: true,
     })
 
-    console.log(`!!! DOUBLE_OPTIN_CHECK isDoubleOptIn=${isDoubleOptIn} env=${env?.ENVIRONMENT}`)
-
-    if (isDoubleOptIn) {
-      // Create pending booking
-      const confirmToken = crypto.randomUUID()
-      const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 min expiry
-      console.log(`!!! PENDING_BOOKING_CREATE token=${confirmToken} expires=${expiresAt} email=${email} purpose=${purpose || 'none'}`)
-
-      try {
-        // Try insert into pending_bookings (migration 0003)
-        const pendingId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
-        const slotDate = slot.date || slot.start.split('T')[0]
-        const insertPendingStmt = db.prepare(
-          'INSERT INTO pending_bookings (id, confirm_token, first_name, last_name, email, phone, purpose, slot_date, slot_start, slot_end, contact_id, status, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime("now"), ?13)'
-        )
-        await insertPendingStmt.bind(pendingId, confirmToken, firstName, lastName, email, phone || null, purpose || null, slotDate, slot.start, slot.end, contactId!, 'pending', expiresAt).run()
-        console.log(`!!! PENDING_BOOKING_INSERT_OK id=${pendingId}`)
-      } catch (e: any) {
-        console.log(`!!! PENDING_BOOKING_INSERT_ERROR ${e?.message} — trying fallback without contact_id or alternative schema`)
-        try {
-          // Fallback for D1 that may not have migration yet or mock in tests
-          const pendingId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
-          const slotDate = slot.date || slot.start.split('T')[0]
-          const stmt = db.prepare('INSERT INTO pending_bookings (id, confirm_token, first_name, last_name, email, phone, purpose, slot_date, slot_start, slot_end, status, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)')
-          await stmt.bind(pendingId, confirmToken, firstName, lastName, email, phone || null, purpose || null, slotDate, slot.start, slot.end, 'pending', expiresAt).run().catch(() => {})
-        } catch {
-          // If pending table doesn't exist (local without migration), fallback to immediate booking for resilience in local dev
-          console.log('!!! PENDING_TABLE_MISSING fallback to immediate booking for local dev')
-        }
-      }
-
-      const confirmUrl = `${siteUrl}/api/booking/confirm/${confirmToken}`
-      console.log(`!!! PENDING_CONFIRM_EMAIL_SEND_START confirmUrl=${confirmUrl} purpose=${purpose || 'none'}`)
-
-      // Import dynamically to avoid circular
-      const { sendPendingConfirmEmail } = await import('../_lib/email')
-      const pendingEmailResult = await sendPendingConfirmEmail({
-        to: email,
-        firstName,
-        lastName,
-        confirmUrl,
-        dateTime: dateTimeEt,
-        purpose,
-        env: {
-          RESEND_API_KEY: getResendApiKey(env) || env?.RESEND_API_KEY,
-          EMAIL_FROM: env?.EMAIL_FROM || env?.FROM,
-          ENVIRONMENT: env?.ENVIRONMENT,
-          SITE_URL: siteUrl,
-          ...env,
-        },
-      })
-      console.log(`!!! PENDING_CONFIRM_EMAIL_RESULT success=${pendingEmailResult.success} source=${pendingEmailResult.source} error=${pendingEmailResult.error || 'none'}`)
-
-      const emailFailed = !pendingEmailResult.success
-      const isTestModeError = pendingEmailResult.error?.includes('own email address') || pendingEmailResult.error?.includes('validation_error') || pendingEmailResult.error?.includes('verify a domain')
-
-      if (emailFailed) {
-        console.log(`!!! PENDING_EMAIL_FAILED isTestMode=${isTestModeError} error=${pendingEmailResult.error} — returning pending with confirmUrl for testing (Resend onboarding only to own email)`)
-      }
-
-      // Return pending response — frontend shows Check your email message
-      // Even if email failed (Resend test mode onboarding@ only to own email), still return pending with confirmUrl so user can confirm via website for testing
-      // The confirmUrl is one-time and expires 30 min — frontend will show it when email fails
-      console.log('!!! BOOKING_PENDING_RETURN check email message')
-      return new Response(
-        JSON.stringify({
-          pending: true,
-          confirmToken,
-          confirmUrl,
-          dateTime: dateTimeEt,
-          email,
-          purpose: purpose || null,
-          message: emailFailed
-            ? isTestModeError
-              ? `Email sending failed (Resend test mode: can only send to your own email ${pendingEmailResult.error?.includes('metagtmtest1@gmail.com') ? 'metagtmtest1@gmail.com' : 'owner'}). For testing, use your own email or verify domain at resend.com/domains. Your confirm link (for testing): ${confirmUrl} — Purpose will be in invite.`
-              : `Check your email (${email}) to confirm, but email delivery had issue: ${pendingEmailResult.error}. Your confirm link for testing: ${confirmUrl}`
-            : `Check your email (${email}) to confirm your meeting for ${dateTimeEt}. Link expires in 30 minutes. Purpose will be included in calendar invite.`,
-          expiresAt,
-          emailResult: {
-            success: pendingEmailResult.success,
-            source: pendingEmailResult.source,
-            error: pendingEmailResult.error,
-            isTestModeError,
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            ...headers,
-            'Cache-Control': 'no-store',
-          },
-        }
-      )
-    }
-
-    // For local/test — immediate booking (old flow) for TDD and local dev without double opt-in
-    console.log('!!! IMMEDIATE_BOOKING_PATH for local/test — bypass double opt-in per TDD')
+    console.log(`!!! IMMEDIATE_BOOKING_PATH original way — no confirm click, env=${env?.ENVIRONMENT} purpose=${purpose || 'none'}`)
 
     // Generate cancel_token UUIDv4 — 122 bits entropy, not guessable, one-time use
     const cancelToken = crypto.randomUUID()
     console.log(`!!! CANCEL_TOKEN_GENERATED token=${cancelToken}`)
 
-    // Create GCal event with Meet link auto — use alias-aware env
+    // Create GCal event with Meet link auto — use alias-aware env + purpose in invite
     const diagBefore = getDiagInfo(env)
     console.log(`!!! GCAL_CREATE_START siteUrl=${siteUrl} diag=${JSON.stringify(diagBefore)} slot=${slot.start}->${slot.end}`)
     const { calendarEventId, meetLink, source, error: gcalError } = await createBookingEvent(env, {
