@@ -1,8 +1,13 @@
-import { computeSlots, getFreeBusy, getStubSlots, normalizeSlotMinutes, parseExcludeToday } from '../../_lib/google-calendar'
+import { computeSlots, getFreeBusy, getStubSlots, normalizeSlotMinutes, parseExcludeToday, getDiagInfo } from '../../_lib/google-calendar'
+import { getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey } from '../../_lib/env'
 
 export interface Env {
   BOOKING_CALENDAR_ID?: string
+  BOOKING?: string
+  BOOKING_CALENDAR?: string
   PERSONAL_CALENDAR_ID?: string
+  PERSONAL?: string
+  PERSONAL_CALENDAR?: string
   WORKING_HOURS_START?: string
   WORKING_HOURS_END?: string
   WORKING_DAYS?: string // "1,2,3,4,5"
@@ -12,8 +17,10 @@ export interface Env {
   ENVIRONMENT?: string
   SITE_URL?: string
   GCAL_SERVICE_ACCOUNT_KEY?: string
+  GOOGLE_SERVICE_ACCOUNT_KEY?: string
   STUB?: string
   STUB_SLOTS?: string
+  [key: string]: any
 }
 
 function parseWorkingDays(raw?: string): number[] {
@@ -27,6 +34,7 @@ function parseWorkingDays(raw?: string): number[] {
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   try {
+    console.log('!!! SLOTS_REQUEST_START')
     const url = new URL(request.url)
     const weeksParam = url.searchParams.get('weeks')
     let weeks = 2
@@ -36,6 +44,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         weeks = parsed
       }
     }
+    console.log(`!!! SLOTS_PARAMS weeks=${weeks} url=${request.url}`)
 
     // Default true per requirement assume dont schedule today (C1)
     const excludeToday = parseExcludeToday((env as any)?.EXCLUDE_TODAY ?? (env as any)?.CALENDAR_EXCLUDE_TODAY ?? 'true')
@@ -48,9 +57,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       slotMinutes: normalizeSlotMinutes(env?.SLOT_DURATION_MINUTES || '30'),
       excludeToday,
     }
+    console.log(`!!! SLOTS_WORKING_HOURS start=${workingHours.start} end=${workingHours.end} days=${workingHours.days.join(',')} slotMinutes=${workingHours.slotMinutes} excludeToday=${excludeToday}`)
 
     // FreeBusy — stub when no SA key or ENVIRONMENT test/local or STUB flag
+    console.log('!!! SLOTS_FREEBUSY_CALL_START')
     const { busyBlocks, source, error } = await getFreeBusy(env)
+    console.log(`!!! SLOTS_FREEBUSY_RESULT source=${source} busyCount=${busyBlocks.length} error=${error || 'none'}`)
 
     let slots
     const startDate = new Date()
@@ -84,6 +96,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       // No title, summary, description, attendees
     }))
 
+    const diag = getDiagInfo(env)
+    console.log(`!!! SLOTS_COMPUTE_DONE safeSlots=${safeSlots.length} source=${source}`)
+
     return new Response(
       JSON.stringify({
         slots: safeSlots,
@@ -91,10 +106,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         source, // stub or live — for debugging, UI can show badge
         error: error || undefined,
         calendars: {
-          booking: env?.BOOKING_CALENDAR_ID ? 'configured' : 'not-configured',
-          personal: env?.PERSONAL_CALENDAR_ID ? 'configured' : 'not-configured',
+          booking: getBookingCalendarId(env) ? 'configured' : 'not-configured',
+          personal: getPersonalCalendarId(env) ? 'configured' : 'not-configured',
+          gcalKey: getGcalServiceKey(env) ? 'configured' : 'not-configured',
+          // keep old keys for backward compat
+          bookingConfigured: !!getBookingCalendarId(env),
+          personalConfigured: !!getPersonalCalendarId(env),
         },
         workingHours,
+        diag,
       }),
       {
         status: 200,
@@ -108,6 +128,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       }
     )
   } catch (e: any) {
+    console.log(`!!! SLOTS_EXCEPTION ${e?.message}`)
     // Fallback to stub on error — respect excludeToday true default
     const fallbackSlots = getStubSlots(2, true)
     return new Response(

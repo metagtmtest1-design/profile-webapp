@@ -9,6 +9,7 @@ export interface UseCalendarReturn {
   slotMinutes: number
   excludeToday: boolean
   refetch: () => Promise<void>
+  removeSlot: (slot: CalendarSlot | { start: string; end: string; date?: string }) => void
 }
 
 export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalendarReturn {
@@ -22,7 +23,9 @@ export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalen
     setLoading(true)
     setError(null)
     try {
+      console.log(`!!! USECALENDAR_FETCH_START weeks=${weeks}`)
       const full = await fetchSlotsFull(weeks, options)
+      console.log(`!!! USECALENDAR_FETCH_RESULT slots=${full.slots.length} source=${full.source}`)
       setSlots(full.slots)
       // Configurable slot duration multiple of 15 per requirement, from API workingHours
       if (full.workingHours?.slotMinutes) {
@@ -32,12 +35,18 @@ export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalen
         setExcludeToday(!!full.workingHours.excludeToday)
       }
     } catch (e: any) {
+      console.log(`!!! USECALENDAR_FETCH_ERROR ${e.message}`)
       setError(e.message || String(e))
       setSlots([])
     } finally {
       setLoading(false)
     }
   }, [weeks])
+
+  const removeSlot = useCallback((slotToRemove: CalendarSlot | { start: string; end: string; date?: string }) => {
+    console.log(`!!! USECALENDAR_REMOVE_SLOT start=${slotToRemove.start} optimistic removal to prevent stale display until reload`)
+    setSlots((prev) => prev.filter((s) => s.start !== slotToRemove.start))
+  }, [])
 
   useEffect(() => {
     fetch()
@@ -52,5 +61,5 @@ export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalen
     return map
   }, [slots])
 
-  return { slots, grouped, loading, error, slotMinutes, excludeToday, refetch: fetch }
+  return { slots, grouped, loading, error, slotMinutes, excludeToday, refetch: fetch, removeSlot }
 }

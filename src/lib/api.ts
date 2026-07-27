@@ -67,17 +67,19 @@ export class ApiError extends Error {
 export interface FetchOptions {
   timeoutMs?: number
   signal?: AbortSignal
+  cache?: RequestCache
 }
 
 async function fetchJson(url: string, options: FetchOptions & { method?: string } = {}) {
-  const { timeoutMs = 5000, signal, method = 'GET' } = options
+  const { timeoutMs = 5000, signal, method = 'GET', cache } = options as any
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)
   if (signal) {
     signal.addEventListener('abort', () => controller.abort(signal.reason))
   }
   try {
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, signal: controller.signal })
+    console.log(`!!! API_FETCH_START url=${url} cache=${cache || 'default'}`)
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, signal: controller.signal, cache: cache || 'no-store' } as any)
     const json = await res.json().catch(() => null)
     if (!res.ok) {
       throw new ApiError(`Request failed with ${res.status}`, res.status, json)
@@ -125,12 +127,90 @@ export interface SlotsResponse {
 }
 
 export async function fetchCalendarSlots(weeks: number = 2, options: FetchOptions = {}): Promise<CalendarSlot[]> {
-  const { json } = await fetchJson(`/api/calendar/slots?weeks=${weeks}`, options)
+  const bust = `_t=${Date.now()}`
+  const sep = `?weeks=${weeks}`.includes('?') ? '&' : '?'
+  const url = `/api/calendar/slots?weeks=${weeks}&${bust}`
+  const { json } = await fetchJson(url, { ...options, cache: 'no-store' } as any)
   const data = json as SlotsResponse
   return data.slots as CalendarSlot[]
 }
 
 export async function fetchSlotsFull(weeks: number = 2, options: FetchOptions = {}): Promise<SlotsResponse> {
-  const { json } = await fetchJson(`/api/calendar/slots?weeks=${weeks}`, options)
+  const bust = `_t=${Date.now()}`
+  const url = `/api/calendar/slots?weeks=${weeks}&${bust}`
+  const { json } = await fetchJson(url, { ...options, cache: 'no-store' } as any)
   return json as SlotsResponse
+}
+
+export interface BookingPayload {
+  firstName: string
+  lastName: string
+  email: string
+  phone?: string
+  purpose?: string
+  slot: CalendarSlot | { date?: string; start: string; end: string }
+  turnstileToken?: string
+  confirmIntent?: boolean
+}
+
+export interface BookingResponse {
+  meetLink: string
+  dateTime: string
+  cancelUrl: string
+  cancelToken?: string
+  calendarEventId?: string
+  source?: string
+  warning?: string
+  confirmIntent?: boolean
+  duplicateWarning?: boolean
+  gcalError?: string
+  emailResult?: { success: boolean; source: string; error?: string; id?: string }
+  diag?: { bookingCalendar: boolean; gcalKey: boolean; resendKey: boolean; env?: string }
+  pending?: boolean
+  confirmToken?: string
+  confirmUrl?: string
+  message?: string
+  purpose?: string | null
+  email?: string
+  expiresAt?: string
+}
+
+export async function createBooking(payload: BookingPayload, options: FetchOptions = {}): Promise<BookingResponse> {
+  const controller = new AbortController()
+  const timeoutMs = options.timeoutMs ?? 8000
+  const timeout = setTimeout(() => controller.abort(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)
+  if (options.signal) {
+    options.signal.addEventListener('abort', () => controller.abort(options.signal!.reason))
+  }
+  try {
+    const res = await fetch('/api/booking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        email: payload.email,
+        phone: payload.phone,
+        purpose: payload.purpose,
+        slot: payload.slot,
+        turnstileToken: payload.turnstileToken,
+        confirmIntent: payload.confirmIntent,
+      }),
+      signal: controller.signal,
+    })
+    const j = await res.json().catch(() => null)
+    if (!res.ok) {
+      throw new ApiError(`Request failed with ${res.status}`, res.status, j)
+    }
+    if (!j) throw new ApiError('Failed to parse booking response', res.status)
+    return j as BookingResponse
+  } catch (e: any) {
+    if (e instanceof ApiError) throw e
+    if (e?.name === 'AbortError' || e?.message?.toLowerCase().includes('abort') || e?.message?.includes('timeout')) {
+      throw new Error(`Booking timeout after ${timeoutMs}ms: ${e.message}`)
+    }
+    throw new Error(`Network error: ${e.message || String(e)}`)
+  } finally {
+    clearTimeout(timeout)
+  }
 }

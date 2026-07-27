@@ -1,12 +1,22 @@
 import { checkD1, type D1Like } from '../_lib/db'
 import { checkR2, type R2Like } from '../_lib/r2'
-import { getEnvironment, type EnvVars } from '../_lib/env'
+import { getEnvironment, type EnvVars, getBookingCalendarId, getPersonalCalendarId, getGcalServiceKey, getResendApiKey, getTurnstileSecret } from '../_lib/env'
 
 export interface Env {
   DB?: D1Like
   R2_BUCKET?: R2Like
   ENVIRONMENT?: string
   SITE_URL?: string
+  BOOKING_CALENDAR_ID?: string
+  BOOKING?: string
+  PERSONAL_CALENDAR_ID?: string
+  PERSONAL?: string
+  GCAL_SERVICE_ACCOUNT_KEY?: string
+  GOOGLE_SERVICE_ACCOUNT_KEY?: string
+  RESEND_API_KEY?: string
+  TURNSTILE_SECRET_KEY?: string
+  TURNSTILE_SITE_KEY?: string
+  [key: string]: any
 }
 
 interface HealthResponse {
@@ -45,7 +55,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     ? `${siteUrl || ''}/r2-sample/test-image.jpg`.replace(/\/\//g, '/').replace(':/', '://')
     : `https://via.placeholder.com/300x200?text=R2+${r2Status}`
 
-  const response: HealthResponse = {
+  const response: HealthResponse & any = {
     status,
     db: dbStatus as any,
     r2: r2Status as any,
@@ -56,6 +66,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
       r2Ms: r2Result.ms,
     },
     sampleImageUrl,
+    // Diagnostics for booking calendar/email — booleans only, no PII leaked
+    diagnostics: {
+      bookingCalendar: !!getBookingCalendarId(env),
+      personalCalendar: !!getPersonalCalendarId(env),
+      gcalKey: !!getGcalServiceKey(env),
+      resendKey: !!getResendApiKey(env),
+      turnstileSecret: !!getTurnstileSecret(env),
+      turnstileSiteKey: !!(env as any)?.TURNSTILE_SITE_KEY,
+    },
   }
 
   if (!d1Result.ok) response.dbError = d1Result.error
