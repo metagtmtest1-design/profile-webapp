@@ -37,9 +37,10 @@ describe('Admin page — Cloudflare Zero Trust Google login', () => {
       refetch: vi.fn(),
     })
     render(<Admin />)
-    expect(screen.getByText(/Admin Access Required/i)).toBeInTheDocument()
+    expect(screen.getByText(/Passwordless Google Login/i)).toBeInTheDocument()
     expect(screen.getAllByText(/Cloudflare Zero Trust/i).length).toBeGreaterThan(0)
-    expect(screen.getByText(/Google login only, no password/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/no password form anywhere/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Passwordless flow/i)).toBeInTheDocument()
   })
 
   it('shows admin dashboard when authed via bypass local', async () => {
@@ -85,8 +86,25 @@ describe('Admin page — Cloudflare Zero Trust Google login', () => {
       refetch: vi.fn(),
     })
     render(<Admin />)
-    expect(screen.getByText(/Free Tier Safety/i)).toBeInTheDocument()
-    expect(screen.getByText(/Client resize: max 1200px/i)).toBeInTheDocument()
+    expect(screen.getByText(/Free Tier Safety.*100 Images/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/PNG if.*1MB.*WebP/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Replace-on-update/i)).toBeInTheDocument()
+    expect(screen.getByText(/alpha\+prod/i)).toBeInTheDocument()
+  })
+
+  it('shows passwordless Google login explicitly no password form', () => {
+    mockUseAdminAuth.mockReturnValue({
+      data: { authed: true, email: 'admin@example.com', bypass: false, env: 'production', allowlistConfigured: true },
+      loading: false,
+      error: null,
+      isAuthed: true,
+      isBypass: false,
+      email: 'admin@example.com',
+      refetch: vi.fn(),
+    })
+    render(<Admin />)
+    expect(screen.getAllByText(/Passwordless Google Login/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/No password field anywhere/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/passwordless/i).length).toBeGreaterThan(0)
   })
 })

@@ -503,11 +503,13 @@ curl "https://alpha.profile-webapp.pages.dev/api/calendar/slots?weeks=2" | jq '.
 
 ---
 
-## 14. Cloudflare Zero Trust — Google Login for Admin (Slice 5 Auth) — Additional Setup
+## 14. Cloudflare Zero Trust — Passwordless Google Login for Admin (Slice 5 Auth) — Additional Setup
 
-**Goal:** Protect `/admin/*` + `/api/admin/*` so only allowlisted Google emails can login, no username/password, via Cloudflare Access. This is extra beyond `functions/_lib/auth.ts` code (which verifies headers `Cf-Access-Jwt-Assertion` + `Cf-Access-Authenticated-User-Email`).
+**Goal:** Protect `/admin/*` + `/api/admin/*` so only allowlisted Google emails can login, **passwordless** — no username/password form anywhere in our app, only Google OAuth button via Cloudflare Access. This is extra beyond `functions/_lib/auth.ts` code (which verifies headers `Cf-Access-Jwt-Assertion` + `Cf-Access-Authenticated-User-Email`).
 
-**Why need extra dashboard setup (your question):** Code alone cannot create Google OAuth flow — Cloudflare Zero Trust does edge intercept before Worker. You must enable Identity Provider Google + Access Application. Without it, `/admin` would be public + our code returns 401 (as you saw). With it, Google login page appears at edge.
+**Why passwordless Google login (your question "I still dont see where you mentioned Google login, since this admin will be passwordless"):** Our code has zero password logic — no `<input type=password>`, no credential check. All login is handled by Cloudflare Zero Trust edge-intercept: user hits `/admin` → CF redirects to Google OAuth (you pick Google account, 1-click, no password field in our app), Google returns to `https://<team>.cloudflareaccess.com/cdn-cgi/access/callback`, CF sets JWT header with your Google email, Worker verifies allowlist. This is passwordless by design — we never see or store passwords.
+
+**Why need extra dashboard setup (your question):** Code alone cannot create Google OAuth flow — Cloudflare Zero Trust does edge intercept before Worker. You must enable Identity Provider Google + Access Application. Without it, `/admin` would be public + our code returns 401 (as you saw). With it, Google login page appears at edge (passwordless flow).
 
 **15 min setup — one-time:**
 
@@ -524,12 +526,13 @@ curl "https://alpha.profile-webapp.pages.dev/api/calendar/slots?weeks=2" | jq '.
    - Create → Copy **Client ID** `xxx.apps.googleusercontent.com` + **Client Secret** `GOCSPX-...`
    - This is different from `GOOGLE_OAUTH_CLIENT_ID` for calendar Meet (that one redirects to `https://developers.google.com/oauthplayground`), this one redirects to your team domain callback.
 
-### C. Add Google Identity Provider in Zero Trust
+### C. Add Google Identity Provider in Zero Trust — Passwordless Only
 1. **Zero Trust Dashboard** → **Settings → Authentication → Login methods** or **Access → Identity Providers** (new UI: **Zero Trust → Settings → Authentication → Add new provider**)
 2. Choose **Google** → Paste Client ID (as App ID) + Client Secret → Enable PKCE optional → Save
-3. Test: **Test** next to Google → should redirect to Google login and succeed.
+3. Disable all other login methods (One-time PIN, Username/Password etc) — keep only Google → ensures **passwordless Google only**, no password form anywhere
+4. Test: **Test** next to Google → should redirect to Google login (passwordless — pick Google account, no password field in our app) and succeed.
 
-### D. Create Access Application for Admin
+### D. Create Access Application for Admin — Passwordless Google Only
 1. **Zero Trust → Access → Applications → Add an application → Self-hosted**
 2. **Public hostname** mode (since we use Pages, not Tunnel):
    - Click **Add public hostname**
