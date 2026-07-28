@@ -143,13 +143,17 @@ slice3-14-double-optin df0fc2c → slice3-15 email fallback 1dede38 → slice3-1
 - **Slice 3 — Booking Meeting:** Implemented `POST /api/booking` with Turnstile invisible anti-bot (single-use token reset fix), duplicate warning + confirm actually rebooks, FreeBusy race guard, upsert contact, Google Calendar event with 3-step retry for fake Meet (`forbiddenForServiceAccounts` without DWD + `Invalid conference type` on group calendars via SA) to bare live event + OAuth real Meet via `GOOGLE_OAUTH_*` in primary calendar (fixes unknown sender), purpose in summary `— ${purpose}` + description `Purpose:`, Resend 403 fallback to Gmail API, DB only after Google 200, max per week disabled via env, slot optimistic removal + cache bust, `!!!` logs + debug endpoints `diag` + `check-calendar`.
 - **Slice 4 — Cancellation + Confirm:** Added `GET /api/cancel/[token]` and `GET /api/booking/confirm/[token]` — cancel deletes Google event (primary + booking group) + status cancelled + `X-Cache-Invalidate`, confirm creates event only after email click for double opt-in Option 1 (now reverted to immediate per final request but code kept).
 
-## Next Slices — Slice 0-4 Complete ✅
+## Next Slices — Slice 0-4 Complete ✅ (Slice 5 Materials now optional)
 
-- **Slice 5:** Materials `POST /api/materials/lookup` email → Drive URL — next (requires Drive OAuth + `GOOGLE_OAUTH_*` already)
-- **Slice 6:** Admin Edit — `upload-image` R2 + sections/items CRUD/reorder + `auth.ts` + `ADMIN_BYPASS` dev flag
-- **Slice 7:** Admin Bookings — list JOIN + resend + cancel + purpose display
-- **Slice 8:** Admin Contacts + Drive — ?email= filter + PATCH drive URL validation, full E2E
-- **Slice 9:** Polish + SEO + OG + perf headers + responsive final + error boundaries
+- **Slice 5:** Admin Edit (was 6) — `upload-image` R2 + sections/items CRUD/reorder + `auth.ts` Access JWT + `ADMIN_BYPASS` dev flag + `EditableText`, `ImageUploader` client resize WebP 1MB/1200px → R2
+- **Slice 6:** Admin Bookings (was 7) — list JOIN + resend + cancel + purpose display + Meet link + purpose
+- **Slice 7:** Admin Contacts + Drive (was 8) — `?email=` filter + `PATCH` drive URL validation, full E2E book→contact→admin set Drive→visitor lookup
+- **Slice 8:** Polish + SEO + OG + perf headers + responsive final + error boundaries + Setup.md final + README final
+
+**Optional — not required now:**
+- **Slice 5 old — Materials `POST /api/materials/lookup` email → Drive URL** — marked optional per your note, requires Drive OAuth `GOOGLE_OAUTH_*` + Drive folder + sharing. Can be implemented later as optional slice, not blocking admin or polish. If needed, specs: lookup by email returns Drive URL from contacts, admin sets Drive URL via PATCH.
+
+Each: TDD red→green, feature branch `slice#-#-words` → PR vs `alpha` → client verifies `alpha.profile-webapp.pages.dev` → PR `alpha` → `main` → prod. No direct commits to `alpha`/`main` per rule.
 
 See `doc/Setup.md` Sec 15-16 for Google project creation with calendar scopes + OAuth Playground refresh token + personal Gmail vs Workspace custom domain + Resend custom domain.
 
