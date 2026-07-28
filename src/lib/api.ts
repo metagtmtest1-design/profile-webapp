@@ -175,6 +175,21 @@ export interface BookingResponse {
   expiresAt?: string
 }
 
+export interface AdminAuthResponse {
+  authed: boolean
+  email?: string | null
+  bypass?: boolean
+  env?: string
+  error?: string
+  allowlistConfigured?: boolean
+  diagnostics?: any
+}
+
+export async function fetchAdminAuth(options: FetchOptions = {}): Promise<AdminAuthResponse> {
+  const { json } = await fetchJson('/api/admin/auth', { ...options, cache: 'no-store' } as any)
+  return json as AdminAuthResponse
+}
+
 export async function createBooking(payload: BookingPayload, options: FetchOptions = {}): Promise<BookingResponse> {
   const controller = new AbortController()
   const timeoutMs = options.timeoutMs ?? 8000

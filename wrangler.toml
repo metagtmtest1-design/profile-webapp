@@ -12,7 +12,8 @@ pages_build_output_dir = "dist"
 # Non-PII vars for local dev (public ok, not PII, not secret)
 # SLOT_DURATION configurable multiple of 15, EXCLUDE_TODAY true = don't schedule today, TIMEZONE Eastern for now configurable admin later
 # TURNSTILE_SITE_KEY public key 0x4AAAAAAD8-3h6x-RUDasMf — public, okay in public GitHub (site key, not secret)
-# Secret keys (TURNSTILE_SECRET_KEY, GCAL_SERVICE_ACCOUNT_KEY, BOOKING/PERSONAL calendar IDs, RESEND_API_KEY) as Encrypted Secrets via Dashboard
+# Secret keys (TURNSTILE_SECRET_KEY, GCAL_SERVICE_ACCOUNT_KEY, BOOKING/PERSONAL calendar IDs, RESEND_API_KEY, ADMIN_EMAILS) as Encrypted Secrets via Dashboard
+# ADMIN_BYPASS is non-PII flag, public ok — true for local dev, false in prod (enforced via Access)
 [vars]
 ENVIRONMENT = "local"
 SITE_URL = "http://localhost:8788"
@@ -26,6 +27,8 @@ TIMEZONE = "America/New_York"
 TURNSTILE_SITE_KEY = "0x4AAAAAAD8-3h6x-RUDasMf"
 BOOKING_MAX_PER_WEEK = "0"
 BOOKING_LIMIT_ENABLED = "false"
+ADMIN_BYPASS = "true"
+# ADMIN_EMAILS as Encrypted Secret via Dashboard (PII) — e.g. "admin@example.com, owner@company.com"
 
 # Local D1/R2 for `wrangler pages dev --local`
 [[d1_databases]]
@@ -60,7 +63,9 @@ TIMEZONE = "America/New_York"
 TURNSTILE_SITE_KEY = "0x4AAAAAAD8-3h6x-RUDasMf"
 BOOKING_MAX_PER_WEEK = "0"
 BOOKING_LIMIT_ENABLED = "false"
-# BOOKING_CALENDAR_ID and PERSONAL_CALENDAR_ID as Encrypted Secrets via Dashboard (PII not public)
+ADMIN_BYPASS = "true"
+# ADMIN_BYPASS true for alpha preview to allow testing without Access yet — can set false when Access configured
+# BOOKING_CALENDAR_ID and PERSONAL_CALENDAR_ID + ADMIN_EMAILS as Encrypted Secrets via Dashboard (PII not public)
 
 # Production env: main branch https://profile-webapp.pages.dev
 [env.production]
@@ -85,4 +90,6 @@ TIMEZONE = "America/New_York"
 TURNSTILE_SITE_KEY = "0x4AAAAAAD8-3h6x-RUDasMf"
 BOOKING_MAX_PER_WEEK = "0"
 BOOKING_LIMIT_ENABLED = "false"
-# BOOKING and PERSONAL as Encrypted Secrets via Dashboard
+ADMIN_BYPASS = "false"
+# ADMIN_BYPASS false in prod — MUST use Cloudflare Zero Trust Google login, only ADMIN_EMAILS allowlisted via Dashboard Encrypted Secret
+# BOOKING and PERSONAL + ADMIN_EMAILS as Encrypted Secrets via Dashboard
