@@ -503,7 +503,138 @@ curl "https://alpha.profile-webapp.pages.dev/api/calendar/slots?weeks=2" | jq '.
 
 ---
 
-## 14. Pitfalls — Fixed
+## 14. Cloudflare Zero Trust — Google Login for Admin (Slice 5 Auth) — Additional Setup
+
+**Goal:** Protect `/admin/*` + `/api/admin/*` so only allowlisted Google emails can login, no username/password, via Cloudflare Access. This is extra beyond `functions/_lib/auth.ts` code (which verifies headers `Cf-Access-Jwt-Assertion` + `Cf-Access-Authenticated-User-Email`).
+
+**Why need extra dashboard setup (your question):** Code alone cannot create Google OAuth flow — Cloudflare Zero Trust does edge intercept before Worker. You must enable Identity Provider Google + Access Application. Without it, `/admin` would be public + our code returns 401 (as you saw). With it, Google login page appears at edge.
+
+**15 min setup — one-time:**
+
+### A. Enable Zero Trust + Team Domain
+1. **https://dash.cloudflare.com** → Left **Zero Trust** → If first time, onboarding: Choose Free plan → Team Name e.g. `portfolio` → Team Domain `portfolio.cloudflareaccess.com` → Save (this is `https://portfolio.cloudflareaccess.com` domain for callbacks)
+2. Note Team Domain URL — needed for Google OAuth.
+
+### B. Create Google OAuth Client for Access (separate from Calendar SA + from Gmail OAuth for Meet)
+1. **https://console.cloud.google.com** → Use same project `portfolio-webapp-503319` or new project `portfolio-access` → **APIs & Services → Credentials**
+2. If not configured consent screen (you already did for Calendar OAuth, reuse), check **OAuth Consent Screen** → User Type External → App name `Portfolio Admin Access`, Support email your email, Contact same → Save.
+3. **Create Credentials → OAuth Client ID → Web Application → Name `cloudflare-access`**
+   - Authorized JavaScript origins: `https://portfolio.cloudflareaccess.com` (your team domain from Zero Trust)
+   - Authorized Redirect URIs: `https://portfolio.cloudflareaccess.com/cdn-cgi/access/callback`
+   - Create → Copy **Client ID** `xxx.apps.googleusercontent.com` + **Client Secret** `GOCSPX-...`
+   - This is different from `GOOGLE_OAUTH_CLIENT_ID` for calendar Meet (that one redirects to `https://developers.google.com/oauthplayground`), this one redirects to your team domain callback.
+
+### C. Add Google Identity Provider in Zero Trust
+1. **Zero Trust Dashboard** → **Settings → Authentication → Login methods** or **Access → Identity Providers** (new UI: **Zero Trust → Settings → Authentication → Add new provider**)
+2. Choose **Google** → Paste Client ID (as App ID) + Client Secret → Enable PKCE optional → Save
+3. Test: **Test** next to Google → should redirect to Google login and succeed.
+
+### D. Create Access Application for Admin
+1. **Zero Trust → Access → Applications → Add an application → Self-hosted**
+2. **Public hostname** mode (since we use Pages, not Tunnel):
+   - Click **Add public hostname**
+   - Domain dropdown: if you have custom domain `yourdomain.com` use it, but for Pages free tier `*.pages.dev` we use **Switch to custom input** → Enter:
+     - `alpha.profile-webapp.pages.dev`
+     - Path: `/admin/*` → Add
+     - Also add second hostname for API protection: same domain path `/api/admin/*`
+     - Repeat for prod: `profile-webapp.pages.dev` `/admin/*` and `/api/admin/*`
+   - Alternatively if UI supports Cloudflare Pages type: Choose **Cloudflare Pages** → Select project `profile-webapp` → Protection path `/admin/*`
+   - For simplicity, you can also use wildcard: `*.profile-webapp.pages.dev` path `/admin/*` (covers both alpha+prod preview hashes) — if wildcard not allowed, add 2 separate apps for alpha and prod.
+3. **Access policies:** Add existing or Create new policy:
+   - Policy name: `Allow Admin Emails`
+   - Action: **Allow**
+   - Include → **Emails** → Enter your allowlisted emails comma-separated e.g. `admin@example.com, owner@company.com` — these are the only Google emails that can login. This matches `ADMIN_EMAILS` Worker check double defense.
+   - You can also use **Emails ending in** `@yourdomain.com` if you own domain.
+   - Save.
+4. **Identity providers:** Select Google (only Google, disable others, no username/password). Turn on **Instant Auth** to skip Cloudflare Access intermediary page → direct to Google.
+5. **Session Duration:** 24h or 1 week → Save.
+6. **Create/Copy Application**
+
+### E. Configure Wrangler Secrets for Worker Auth Double Check
+Even though Access blocks at edge, our Worker also verifies `Cf-Access-Jwt-Assertion` header to prevent bypass if someone hits origin directly.
+
+- Dashboard → Pages → `profile-webapp` → Settings → Variables and secrets → Choose **Preview** + **Production**:
+  - Add Encrypted Secret `ADMIN_EMAILS` = `admin@example.com, owner@company.com` (same list as Access policy, PII encrypted, not in public toml)
+  - Verify `ADMIN_BYPASS` var: `wrangler.toml` already has `ADMIN_BYPASS=true` for local/preview, `false` for production. For alpha preview while testing Access, you can keep `true` to allow bypass without Google, then set to `false` once Access works. In prod **must** be `false`.
+- Local `.dev.vars`: `ADMIN_BYPASS=true` (already in example) + `ADMIN_EMAILS=admin@example.com`
+
+### F. Verify End-to-End
+```bash
+# Local (bypass true, no Google needed)
+curl http://localhost:8788/api/admin/auth | jq .  # → authed true bypass true env local
+
+# Alpha with ADMIN_BYPASS=true (before Access configured)
+curl https://alpha.profile-webapp.pages.dev/api/admin/auth | jq .  # → authed true bypass true (since preview var true)
+
+# After setting ADMIN_BYPASS=false in preview + Access app created:
+# Browser:
+open https://alpha.profile-webapp.pages.dev/admin
+# → Should redirect to https://portfolio.cloudflareaccess.com/... → Google OAuth login → pick allowed email → if allowed → shows Admin Dashboard, if not allowed email → Block page "That account does not have access"
+# Then API:
+curl -H "Cf-Access-Jwt-Assertion: <real-jwt-from-browser>" https://alpha.profile-webapp.pages.dev/api/admin/auth
+# Or with explicit email header (CF adds automatically):
+# Browser devtools Network → /api/admin/auth request headers include cf-access-authenticated-user-email automatically after login → 200 authed true
+```
+
+**Troubleshooting:**
+- **Still shows Admin Access Required page instead of Google login:** Access application not created or path mismatch `/admin/*` vs `/admin` — check hostname exact + path includes wildcard `/*` + Policy Allow includes your email.
+- **Google login loops:** Redirect URI mismatch in Google OAuth client — must be `https://<team>.cloudflareaccess.com/cdn-cgi/access/callback` exactly, not your pages.dev domain.
+- **401 after Google login:** Our Worker allowlist `ADMIN_EMAILS` doesn't include your email though Access allowed — add email to secret `ADMIN_EMAILS` via Dashboard Encrypted.
+- **Local can't access /admin:** Set `ADMIN_BYPASS=true` in `.dev.vars` + `wrangler.toml` [vars].
+
+---
+
+## 15. R2 Upload Limits + Free Tier Quota (Slice 5)
+
+**Your question:** Any upload limit in browser → Worker → R2 like nginx `client_max_body_size`? Needs config?
+
+**Answer via docs research (official Cloudflare limits page https://developers.cloudflare.com/workers/platform/limits/):**
+
+| Hop | Free Tier Limit | Our Limit | Need Config? |
+|-----|----------------|-----------|--------------|
+| Browser → Cloudflare Edge (request body) | **100MB** for Free/Pro plan, 200MB Business, 500MB Enterprise — returns 413 if exceeded | **1MB** app-level | No — 1MB <<100MB, no nginx-like config needed, CF handles limit |
+| Worker → R2 `put()` single upload | **5 GiB** max object, R2 free 10GB total storage | 1MB | No |
+| Worker → R2 multipart | **5 TiB** max | not used | No |
+| Workers CPU per request | **10ms** Free, 30sec default Paid (5min max) | Auth 1ms + upload 3-5ms = <10ms | Yes need to keep CPU low — client resize WebP/PNG, not Worker |
+| Workers memory | **128MB** | FormData 1MB <<128MB | No |
+| Pages Functions | Same as Workers (V8 isolates) | same | No |
+
+**So no nginx-like `client_max_body_size` config needed** — Cloudflare edge already enforces 100MB. Our app enforces 1MB via code (server check) to stay free tier storage. No `wrangler.toml` upload limit knob exists for Pages Functions (only `limits.cpu_ms` etc for Paid). We keep `ADMIN_BYPASS` etc.
+
+**Quota Endpoint to stay under 10GB R2 free tier:**
+
+New endpoint implemented in next slice (`GET /api/admin/r2-usage`):
+
+- **Auth required** (admin only via same Zero Trust)
+- **Query `?checkQuota=true`** → triggers `R2_BUCKET.list({limit:1000})` — 1 Class A op, sums `size`
+- Returns:
+```json
+{
+  "totalObjects": 42,
+  "totalBytes": 8234567,
+  "totalMB": 7.85,
+  "percent": 0.078,
+  "limitMB": 10240,
+  "limitBytes": 10737418240,
+  "warning": false,
+  "objects": [{ "key":"portfolio/xxx.png", "size": 245000 }, ...],
+  "guidance": "Replace-on-update ensures no bloat..."
+}
+```
+- If `percent >90` → `warning:true` + guidance to delete unused.
+- If `list` truncated (>1000 objects) → returns `truncated:true` + estimate warning.
+- Without `?checkQuota` → returns cheap placeholder counts from D1 `section_items` where `image_url` like `portfolio/%` (no R2 LIST, avoids CPU) — for free tier safety on frequent calls.
+
+**Free tier math for replace-on-update:**
+- Portfolio needs <50 images, avg PNG 300KB (lossless) after 1200px resize → 15MB total
+- 10GB /1MB = 10k images capacity
+- Replace strategy: delete old before put new → storage never grows beyond active images.
+
+**PNG vs WebP choice (your request):** PNG lossless compression (deflate, no quality loss) via `canvas.toBlob('image/png')` preserves quality vs WebP lossy. Tradeoff: PNG larger (often 2-3× WebP) but still ≤1MB after resize. We will implement ImageUploader to output **PNG by default** to keep quality, with fallback to WebP only if PNG >1MB after resize attempts (quality lossless but size fallback).
+
+---
+
+## 16. Pitfalls — Fixed
 
 - **npm 503 `x2pagentd` CONNECT port 443 No route to host:** Host proxy on `:10054` blocks registry, use Docker `node:20` for npm + wrangler remote, token via `-e CLOUDFLARE_API_TOKEN`.
 - **R2 `Please enable R2 [10042]`:** Enable via Dashboard → R2 Overview → Enable (needs card, free tier $0). Before enable, R2 bindings commented out `wrangler.toml`, health `r2:skipped` 200 OK. After enable, uncomment `portfolio-images(-alpha)` + health `r2:ok` for both envs you saw `R2: ok` in alpha.
