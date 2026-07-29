@@ -3,292 +3,173 @@
 Single-page dynamic portfolio with integrated meeting scheduler. 100% Cloudflare free tier — React + Vite frontend, Pages Functions (Workers) backend, D1 SQLite, R2 Object Storage.
 
 **Live URLs:**
-- **Prod (main):** https://profile-webapp.pages.dev — `env:production`, prod D1 `f6dfc0c2-a7db-4e4a-b2de-abc5926fbf8b`, prod R2 `portfolio-images` — health `db:ok r2:ok`
-- **Alpha (alpha):** https://alpha.profile-webapp.pages.dev — `env:alpha`, alpha D1 `30b1ea40-63cd-41ef-84d5-2d9007bea311`, alpha R2 `portfolio-images-alpha` — health `db:ok r2:ok` + clean premium UI (no debug banners)
-- **Health JSON:** `/api/health` → `{status, db, r2, env, checks, timestamp}` — both envs require D1+R2
-- **Content JSON:** `/api/content/home` → `{page, sections: [hero, cards-grid, text-block, testimonials, cta-banner, image-gallery]}` ordered, filtered `is_visible`
+- **Prod:** https://profile-webapp.pages.dev — `env:production`, D1 `f6dfc0c2-a7db-4e4a-b2de-abc5926fbf8b`, R2 `portfolio-images` — health `db:ok r2:ok`
+- **Alpha:** https://alpha.profile-webapp.pages.dev — `env:alpha`, D1 `30b1ea40-63cd-41ef-84d5-2d9007bea311`, R2 `portfolio-images-alpha` — health `db:ok r2:ok`
+- **Health:** `/api/health` → `{status, db, r2, env, checks, diagnostics}`
+- **Content:** `/api/content/home` → `{page, sections: [hero, cards-grid, text-block, testimonials, cta-banner, image-gallery]}`
+- **Slots:** `/api/calendar/slots?weeks=2` → `{slots[], weeks, source live|stub, workingHours}` — cache bust via `_t`
+- **Debug:** `/api/debug/diag` → secrets presence + guidance (no PII leak), `/api/debug/check-calendar?write=true` → tests writer permission (creates/deletes test event)
 
-## Architecture — Slice 0 ✅ + Slice 1 ✅ + Slice 2 ✅ Complete
+## Architecture — Slice 0-4 Complete ✅
+
+- **Frontend:** Vite React TS → `dist/` → Pages CDN, proxy `/api` → backend 8788 via `VITE_API_PROXY_TARGET`
+- **Backend:** Pages Functions `functions/` — file path = route (dynamic `[slug]` → `params.slug`)
+- **DB:** D1 SQLite 5 tables + `pending_bookings` (double opt-in, now unused after revert to immediate), migrations `0001_initial`, `0002_seed` (6 sections 18 items), `0003_double_optin`
+- **Storage:** R2 `portfolio-images` / `portfolio-images-alpha`
+- **Calendar:** Google Calendar API — 2 booking group calendars alpha `4b32...bf4a0@group` + prod `33b9...5847a@group` (via Secrets), personal `metagtmtest1@gmail.com` (free/busy only), SA `portfolio-calendar@portfolio-webapp-503319.iam.gserviceaccount.com` + OAuth `GOOGLE_OAUTH_*` for real Meet on group calendars
+- **Email:** Resend `re_...` + Gmail API fallback via OAuth (`gmail.send` scope) when Resend test mode 403 without custom domain
+- **Anti-bot:** Turnstile invisible `0x4AAAAAAD8-3h6x-RUDasMf` public site key, secret encrypted
+- **Config:** `wrangler.toml` only `preview`/`production` envs (Pages doesn't support custom `alpha` name), non-PII vars public, PII calendar IDs + secrets as Encrypted Secrets via Dashboard (since Dashboard locks plaintext when toml exists)
+- **Env isolation:** Single Pages project `profile-webapp` — Production branch `main` → prod D1/R2, Preview Custom `alpha` only → alpha D1/R2 (full code+data isolation)
 
 ### Completed Slices
 
-**Slice 0 — Infra Proof (Pages+Functions+D1+R2 + Docker + TDD 27→29 tests)**
+**Slice 0 — Infra Proof (27→122 tests now)**
+- Vite React TS scaffold, `wrangler.toml` preview=alpha + production, `migrations/0001_initial` 5 tables, `functions/api/health` checks D1+R2 both envs, Docker frontend 5173 + backend 8788 (node:20 debian, workerd needs glibc) bypasses host `x2pagentd` proxy 503, CI Node 20 lint/build/test, Pages branch control Production `main` + Preview Custom `alpha` only
 
-- Scaffold Vite React TS, `wrangler.toml` with 2 envs `preview` (holds alpha) + `production` (prod) — Pages only supports preview/production, NOT custom alpha name (fix for build error `Configuration file contains environment names not supported: "alpha"`)
-- `migrations/0001_initial.sql` — 5 tables: pages, sections, section_items, contacts, bookings
-- `functions/api/health.ts` — `GET /api/health` checks **both D1+R2 for both envs** (R2 now required, was optional `skipped` before billing): `Promise.all(checkD1, checkR2)` → 200 `{db:ok,r2:ok,env}` or 500
-- Helpers: `env.ts` getEnvironment, `db.ts` checkD1 SELECT 1, `r2.ts` checkR2 PUT/GET/DELETE
-- Frontend: `lib/api.ts` fetchHealth with timeout/abort, `HealthBadge`, `EnvBanner` (now only used at `/health` debug page, not main), `src/pages/Health.tsx` dedicated `/health` route
-- Docker: `docker-compose.yml` frontend 5173 (alpine Vite) + backend 8788 (node:20 debian, workerd needs glibc) + init + tests, volumes `backend_nm`, uses Docker network to bypass host `x2pagentd` proxy on `:10054` that blocks `registry.npmjs.org` 503
-- Isolated git env: container `isolated-git-env` at `/workspace` mounting repo, used for `docker exec isolated-git-env git ...` when host git auth fails (`chc421` vs `hohodsj`)
-- CI: `.github/workflows/ci.yml` Node 20 runs `npm ci`, `lint` (`tsc --noEmit` needs `@types/node`), `build`, `test -- --run`, `test:workers -- --run` — fixed double `--run` bug (package.json had `vitest --run`, CI added `-- --run` → `vitest --run --run` error)
-- Deployed: single Pages project `profile-webapp`, Branch control Production `main` + Preview Custom `alpha` only (screenshot) for full isolation (not All non-prod), alpha `alpha.profile-webapp.pages.dev` and prod `profile-webapp.pages.dev` both green after fixing `wrangler.toml` env naming, health `db:ok r2:ok`
+**Slice 1 — Portfolio Content + Premium UI (61→60→122 tests)**
+- Backend `functions/_lib/content.ts` + `functions/api/content/[slug].ts` `[slug]` → D1 query pages→sections→items ordered/filtered, `max-age=300`, fallback seed for local Miniflare
+- Frontend `lib/api.ts` `fetchContent(slug)` + `useContent` hook + 6 sections: Hero (trust badge, Playfair headline, stats bar), CardsGrid (icons `w-12 h-12` not full-width bar bug), TextBlock (About, no duplicate pill), Testimonials (stars), CTABanner (buttons `px-8 py-4` not `px-7` undefined), ImageGallery (hover scale)
+- Nav sticky blur, Footer 3-col no blog/login, clean UI (no BOLD ENV banner on main, only at `/health`), seed 6 sections 18 items
 
-**Slice 1 — Portfolio Content Display from D1 + Premium UI (TDD 61→60 tests)**
+**Slice 2 — Calendar Slots (89→95→122 tests)**
+- `google-calendar.ts`: `TIMEZONE America/New_York`, `normalizeSlotMinutes()` multiple 15, `parseExcludeToday()` default true (don't schedule today), `getNext14Days` + `getSunday`/`getSaturday` for 3-week Sun-Sat grid max 21 days only 14 selectable, Eastern wall→UTC via `getEasternOffsetHours()`, `getFreeBusy()` SA JWT RS256
+- `GET /api/calendar/slots?weeks=2`: configurable `WORKING_HOURS_START/END`, `WORKING_DAYS`, `SLOT_DURATION_MINUTES`, `EXCLUDE_TODAY`, `TIMEZONE`, safeSlots only date/start/end/available (privacy), cache `max-age=300` + `X-Cache`
+- Frontend `useCalendar` + `CalendarView` 3-week Sun-Sat 7 per row, Today badge padded `px-4 py-1.5`, SlotPicker interval `9:00-9:30` ET smaller buttons `px-3 py-2.5 text-xs gap-3`, close ✕ button
 
-- **Backend:** `functions/_lib/content.ts` helpers `safeParseConfig`, `orderBySort`, `filterVisible` + `functions/api/content/[slug].ts` dynamic route `[slug]` → `params.slug` → D1 query `pages WHERE slug` → sections `WHERE page_id ORDER sort_order` → items `WHERE section_id ORDER sort_order`, filter `is_visible`, `Cache-Control: public, max-age=300` 5-min, fallback seed for local `pages dev` persistence quirk (`no such table: pages` → returns same as 0002 seed for `home` only, remote uses real D1 via `--remote` migrations)
-- **Tests BE:** `content.test.ts` 4, `content/[slug].test.ts` 9 (404 unknown, ordered sections, filtered sections, items ordered, filtered items, config parse, meta_description, cache header, empty sections) including explicit alpha env `db:ok r2:ok` and prod env `db:ok r2:ok` for both envs
-- **Frontend API:** `lib/api.ts` `fetchContent(slug)` + `ContentResponse` types Page/Section/Item (6 types: hero, cards-grid, testimonials, text-block, cta-banner, image-gallery) + `ApiError`
-- **Hook:** `src/hooks/useContent.ts` loading/error/data/refetch
-- **Sections (premium UI inspired by Tristan CPA accounting firm Behance + Nicepage, combined with requirements: calendar, no blog/login):**
-  - `HeroSection`: trust badge green pulse `Available for new projects • Boston-based, global clients`, Playfair Display headline `text-4xl lg:text-5xl font-black`, stats bar 10+ yrs / 120+ projects / 98% retention, CTA `btn-primary rounded-full` black + secondary, image offset bg + floating card conversion focused, `aspect-[4/3]`
-  - `CardsGrid`: heading Playfair, `sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8`, icon `w-12 h-12 rounded-xl bg-slate-50 border flex-none text-xl` with span 22px `aria-hidden` — fixed from `w-10` full-width gray bar bug in screenshot 1, number `0{idx+1}` mono, empty `Services coming soon`
-  - `TextBlock` (About): `gap-12 lg:gap-16 py-20 items-center`, **removed redundant About pill** `About` repeated (screenshot 2), image `aspect-[4/3] h-auto shadow-md rounded-2xl`, bio `max-w-[65ch]`, credentials box, CTAs, badge `Based in Boston Working globally`
-  - `Testimonials`: stars amber, avatar `w-9 h-9 bg-slate-900 circle flex-none`, quote mark, `lg:grid-cols-3`, empty `Client feedback coming soon` — removed redundant pills
-  - `CTABanner`: dark slate-900 gradient, pulse dot `Available for new projects`, Playfair heading, white button `px-8 py-4 rounded-full` — **fixed from `px-7 py-3` where `px-7` had no CSS rule (text close to border)** → now `px-8 py-4 leading-none gap-4` breathing room, focus ring
-  - `ImageGallery`: `sm:grid-cols-2 lg:grid-cols-3`, hover `scale-[1.03]`, `aspect-[4/3]`, empty `Selected work coming soon`, alt descriptive — fixed backtick escaping syntax error
-- **Common:** `Nav` sticky blur `saturate(180%) blur(12px)` bg `rgba(255,255,255,0.9)`, Playfair logo, `flex-wrap gap-4 sm:gap-6 justify-end` + `hidden sm:inline` for mobile, `Layout` no longer renders `EnvBanner` (clean), `Footer` 3-col premium Playfair logo, Services/Company (no blog/login per requirement), CTA card `bg-slate-50 border rounded-xl` with `Book free call →` `btn-primary w-full justify-center`
-- **Pages:** `Home` assembles sections via `useContent('home')` pure content-driven, no infra health `<details>` debug (removed per user request), user-friendly `Loading portfolio…`, `Unable to load portfolio Please try again later`, `Content is being prepared`, calendar placeholder premium card no raw `GET /api/...` path
-- **App.tsx:** Simple routing `window.location.pathname /health` → `<Health />` (debug EnvBanner+HealthBadge at `/health` + `/api/health` JSON), else `<Layout title=Portfolio><Home /></Layout>` — **removed BOLD ENV banner** `🚀 BOLD LOCAL ENV — LOCAL ✅` from main page per user request (was Slice 0 verification, now only at /health)
-- **Seed:** `migrations/0002_seed.sql` — `page_home` home Jane Doe — Designer & Developer + 6 sections ordered 0-5: hero (Welcome to My Portfolio + image + CTA Explore Services), services 6 cards Brand Strategy … Consulting with icons 🎯✨💻🎨📸💡, about Jane Doe + photo + 10+ yrs credentials, testimonials 3 with authors, CTA Let’s build something great together + Book a Call → /#calendar, gallery 6 unsplash images — 18 items total, same as fallback
-- **Docker:** Backend compose now runs `d1 migrations apply DB --local` before `pages dev` to ensure local D1 has tables (fix for `local-DB` vs file persistence where `d1 create portfolio-db` vs `d1 create DB` binding name mismatch caused `no such table: pages`)
-- **Tests FE:** `api.test.ts` 8 (health 5 + content 3), `App.test.tsx` 5 rewritten for clean UI (no BOLD ENV on main, only at /health, loading portfolio, empty, health debug page at /health route with DB:ok R2:ok, no infra health on main), `useContent.test.tsx` 4, sections 12 (Hero 2, CardsGrid 2, TextBlock 2, Testimonials 2, CTABanner 2, Gallery 2) — fixed duplicate heading due to pills (use `getByRole heading`) and empty messages to user-friendly Services coming soon etc, ImageGallery syntax error fixed
-- **Stats Slice 1:** Frontend 12 files 43 tests + Workers 6 files 53 tests = **96 tests green** (previously 26, 27, 61 intermediate) via Docker `node:20` (bypasses proxy), build CSS 8.42-8.76KB + JS 166KB
-- **Branch naming:** `slice# + commitcount + words` per convention: `slice1-1-portfolio-content`, `slice1-2-ui-polish`, `slice1-3-clean-ui`, `slice1-4-premium-ui`, `slice1-5-button-fix` — each later contains previous (superset), so only latest `slice1-5` needs PR to alpha (contains all)
+**Slice 3 — Booking Meeting (core) ✅ (53 FE + 69 BE = 122 green, build 192-195KB)**
 
+- **Turnstile**: Invisible widget `0x4AAAAAAD8-3h6x-RUDasMf` public site key, secret encrypted, real script `challenges.cloudflare.com/turnstile/v0/api.js`. Fixed single-use token (Cloudflare tokens single-use → second booking with same token → 400) via `widgetIdRef` + `resetTurnstile()`, frontend disables Confirm until new token.
+- **Booking `POST /api/booking`**: Validation 400, invalid email 400, Turnstile verify, rate limit configurable `BOOKING_MAX_PER_WEEK` (0=disabled, default 3) via `getMaxBookingsPerWeek()` + `isBookingLimitEnabled()` + `BOOKING_LIMIT_ENABLED` flag — currently `0/false` disabled per request, diag at `.../debug/diag → bookingLimit`, FreeBusy race guard past 409 + busy 409, upsert contact, `cancel_token` UUIDv4.
+- **GCal event**: `conferenceDataVersion=1` + `createRequest {type: hangoutsMeet, requestId: cancelToken}` → `meetLink`. **Fake Meet fixes via `!!!` logs**: 
+  - `forbiddenForServiceAccounts` (SA cannot invite attendees without DWD) → retry without attendees
+  - `Invalid conference type value` on group calendars `...@group` via SA → retry bare event without Meet (live event slot blocked) + PATCH attempt, logs `!!! GCAL_CREATE_RETRY_BARE_EVENT`
+  - **Purpose fix**: summary `Meeting with X — ${purpose}` + description `Purpose: ${purpose}\nContact...\nDetails...\nCancel...` (was missing)
+  - **Unknown sender fix**: SA in group calendar → organizer = group ID → unknown sender; OAuth path creates main event with Meet in **primary** calendar (organizer known `metagtmtest1@gmail.com`) + blocking bare in booking group calendar
+  - **DB only after Google 200**: per requirement only record after Google confirms 200 → `!!! BOOKING_ABORT_DB_INSERT` returns 502 if expected live but got stub (was inserting fake)
+- **Email**: Resend `api.resend.com/emails` with Meet + cancel + purpose + dateTime ET, `[ALPHA]` prefix. **Resend 403** `onboarding@resend.dev` only to own `metagtmtest1@gmail.com` without custom domain → now Gmail API fallback `sendViaGmail()` via OAuth `GOOGLE_OAUTH_*` with `gmail.send` scope — can send to any email without domain. Custom domain fix: `resend.com/domains` → verify SPF/DKIM TXT in Cloudflare → `EMAIL_FROM=bookings@yourdomain.com` as Encrypted Secret (see Setup.md Sec 16)
+- **OAuth real Meet (Option B for personal Gmail, alternative if Gmail domain)**: GCP OAuth client Web app redirect `https://developers.google.com/oauthplayground`, get refresh token `1//04p...` via playground with scopes `calendar` + `calendar.events` + `gmail.send`, store `GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN` as Encrypted Secrets + `.dev.vars` gitignored (never GitHub). Code tries OAuth first `!!! GCAL_TRY_OAUTH_FIRST` → real Meet `https://meet.google.com/xxx` live, fallback to SA bare. Custom domain Workspace alternative: DWD enable + `setSubject('user@yourdomain.com')` impersonation (see Setup.md Sec 15.5, not possible for personal Gmail)
+- **Slot disappears fix**: After booking, availability still showed until reload due to 5-min cache → now `api.ts` cache bust `_t=Date.now()` + `no-store` + `useCalendar.removeSlot()` optimistic → slot vanishes immediately, delayed refetch 2s for propagation, logs `!!! USECALENDAR_REMOVE_SLOT`
+- **Debug logs**: Added `!!!+message` format across full flow — `BOOKING_REQUEST_RECEIVED`, `TURNSTILE_VERIFY_RESULT`, `FREEBUSY_START/RESULT`, `GCAL_CREATE_START/RESULT`, `EMAIL_START/SUCCESS/FAILED`, `SLOTS_REQUEST_START` etc — view in Cloudflare Workers Logs + browser console
+- **Debug endpoints**: `.../debug/diag` → booleans for calendar/email/turnstile/oauth/bookingLimit + guidance, `.../check-calendar?write=true` → tests writer permission creates/deletes test event live
+- **Frontend**: BookingForm first/last/email/phone/purpose + Turnstile + validation + duplicate warning Confirm intent? with actual rebook `doBooking(true)` (was only flag), pending UI `Check your email 📧` with confirm link when Resend 403 for testing + purpose included, success `Meeting Confirmed ✅` with .ics download static import fix `require()` crash + cancel meeting button + Book another `px-6 py-3`, interval `9:00-9:30` ET, close X
+- **Wrangler**: Non-PII vars public `ENVIRONMENT`, `SITE_URL`, `WORKING_HOURS`, `SLOT_DURATION`, `EXCLUDE_TODAY=true`, `TIMEZONE=America/New_York`, `TURNSTILE_SITE_KEY` + `BOOKING_MAX_PER_WEEK=0` disabled, PII calendar IDs + SA JSON + OAuth + secrets encrypted via Dashboard
 
-**Slice 2 — Calendar Slots from Google Calendar (TDD 89→95 tests, 42 FE +53 BE =95)**
-
-- **Backend lib `google-calendar.ts`:** `TIMEZONE = America/New_York` constant (Eastern for now, configurable via `TIMEZONE` var in admin later), `parseTime`, `normalizeSlotMinutes()` multiple of 15 (15,30,45,60 valid, 20→15, 50→45 round down), `parseExcludeToday()` true for true/1/yes, `filterWorkingDays`, `getNext14Days(excludeToday)` 14 days from today/tomorrow, `getNext14Range` + `getSunday`/`getSaturday` for 3-week Sun-Sat grid max 21 days, `computeSlotsForDay` Eastern wall time to UTC ISO conversion via `getEasternOffsetHours()` Intl longOffset GMT-04:00 parsing + fallback DST, `easternWallTimeToUtcIso`, `computeSlots({startDate, weeks, workingHours, busyBlocks, excludeToday})` excludes today when true, `getStubBusyBlocks`, `getStubSlots(weeks, excludeToday)`, `getFreeBusy()` SA JWT RS256 signing via SubtleCrypto + token exchange + FreeBusy API for booking+personal calendars, fallback stub when no key or ENVIRONMENT test/local
-- **Tests BE:** `google-calendar.test.ts` 16 (parseTime, Eastern conversion 09:00 ET=13:00 UTC July, exclude busy 10-11 ET=14-15 UTC, partial overlap, working days, busy all day ET=13-21 UTC, empty, duration 30 vs 60, weeks=2, stub slots no details, stub busy, normalize multiple 15, parseExcludeToday, next14 days, exclude today, compute excluding today)
-- **API `GET /api/calendar/slots?weeks=2`:** `functions/api/calendar/slots.ts` reads `WORKING_HOURS_START/END`, `WORKING_DAYS`, `SLOT_DURATION_MINUTES` configurable multiple 15 via `normalizeSlotMinutes()`, `EXCLUDE_TODAY`/`CALENDAR_EXCLUDE_TODAY` via `parseExcludeToday(...??'true')` default true per requirement assume dont schedule today, calls `getFreeBusy(env)` stub when `GCAL_SERVICE_ACCOUNT_KEY` missing or test/local, generates via `computeSlots` or `getStubSlots` with workingHours+excludeToday, filters past now, safeSlots only date/start/end/available no title/summary (privacy per 6.2), `Cache-Control: public, max-age=300` 5-min + `X-Cache MISS/STUB/FALLBACK`, fallback stub on error, workingHours includes excludeToday
-- **Tests BE slots:** `slots.test.ts` 6 (200 slots array stub when no creds privacy no details, weeks param default 2 respects 1 and 4, cache header max-age=300 + X-Cache, stub source when key missing STUB mode TDD not blocked, uses BOOKING+PERSONAL vars, empty weekend per WORKING_DAYS)
-- **Frontend API:** `lib/api.ts` `fetchCalendarSlots(weeks)` + `fetchSlotsFull` returning `SlotsResponse {slots, weeks, source, workingHours, calendars}` + `CalendarSlot {date,start,end,available}` + `TIMEZONE` handling, `api.test.ts` +3 calendar slots tests
-- **Hook:** `src/hooks/useCalendar.ts` now uses `fetchSlotsFull` to get `workingHours.slotMinutes` + `excludeToday`, returns `slots, grouped, loading, error, slotMinutes, excludeToday, refetch`, `useCalendar.test.tsx` 3 tests updated to mock `fetchSlotsFull` with workingHours
-- **UI CalendarView:** Old month grid 28-31 buttons `getDaysInMonth` + month nav — audit 32% confidence — redesigned to premium 14-day then 3-week strip per user requests: `getNext14Range` + `getSunday`/`getSaturday` → max 3 weeks Sun-Sat 7 per row depending on overlap (Thu Jul 23 to Wed Aug 5 14 days → Sun Jul 20 to Sat Aug 9 =3 weeks 21 days) but only next 14 days selectable via `selectableSet`, weekday header Sun-Sat, day card `min-h-[92px] sm:min-h-[96px] py-3 sm:py-4` prevents 16 slots badge cut off (was cut off screenshot), Today badge `px-4 py-1.5` not close to border (was px-1.5 py-0.5 9px too close), 30m badge removed repetition kept just text Next 14 days selectable • {slotMinutes} min, no -mx-2 overflow causing dates not within box, floating text Select a date blocking fixed by Home vertical layout calendar top + SlotPicker below expand under not side
-- **UI SlotPicker:** Smaller buttons per user request make button itself smaller + fix hover border overlapping next: was `px-4 py-3 rounded-full border ... gap-2 focus:ring-2` causing thick black border overlap 5:30-6:00 screenshot — now `px-3 py-2.5 text-xs border-slate-200 hover:border-slate-900 hover:z-10 relative gap-3 grid-cols-2 truncate leading-none` smaller 12px, gap larger 0.75rem, no scale, interval `9:00 - 9:30` via `formatSlotTimeLocal` stripping AM + `formatSlotInterval(start,end)` per request (was only start time), timezone Eastern `timeZone: America/New_York` via `TIMEZONE` constant (was UTC then visitor local, now Eastern for now configurable via admin var TIMEZONE later), Morning/Afternoon grouping via local hour in ET, close button ✕ `w-9 h-9 rounded-full border` + `onClose={() => setSelectedDate(null)}` to close modal (was no X), removed privacy note `Privacy: only free/busy shown...` per request + Home privacy note
-- **Pages Home:** Calendar section premium card `py-20 lg:py-24 bg-slate-50 border-t`, heading Book a meeting Playfair, configurable duration {slotMinutes}-minute (multiple 15), working hours note with ET label, `CalendarView` props `excludeToday` + `slotMinutes`, `SlotPicker` `slotMinutes` + `onClose`, badge `slots next 14 days (from tomorrow) • Configurable` no raw API path
-- **Backend/Frontend constants:** `src/lib/constants.ts` `TIMEZONE = America/New_York` + `TIMEZONE_LABEL = ET (Eastern)` — Eastern for now per user request, configurable in admin via `TIMEZONE` var later (future)
-- **Wrangler.toml:** Non-PII vars public `ENVIRONMENT` local/alpha/production, `SITE_URL` localhost + alpha.profile-webapp.pages.dev + profile-webapp.pages.dev, `WORKING_HOURS_START/END`, `WORKING_DAYS`, `SLOT_DURATION_MINUTES` 30 configurable multiple 15, `EXCLUDE_TODAY` true default for all envs (was false) per assume dont schedule today + `TIMEZONE` America/New_York for future admin config, PII calendar IDs `BOOKING` alpha `4b32...bf4a0@group` prod `33b9...5847a@group` + personal `metagtmtest1@gmail.com` as Encrypted Secrets via Dashboard (not public) because Dashboard locks plaintext when toml exists Only Secrets allowed, SA JSON `GCAL_SERVICE_ACCOUNT_KEY` encrypted secret for both Preview/Production via Dashboard (SA portfolio-calendar@portfolio-webapp-503319.iam.gserviceaccount.com)
-- **Tests FE:** 9 files 29→42→43 tests (api 8+3=11, App 5 clean no debug banners only at /health, useContent 4, Hero 2, CardsGrid 2, TextBlock 2, Testimonials 2, CTABanner 2, Gallery 2, CalendarView 3 (3-week Sun-Sat max 3 weeks only 14 selectable, excludeToday badge, selected), SlotPicker 5 (interval 9:00-9:30 Eastern, close button, smaller buttons no overlap)) =43 +31 BE? Actually workers 6 files 53 tests after Eastern fix = 43+53=96 green via Docker, build CSS 9.04KB JS 175KB (was 8.76KB 171KB)
-- **Branch naming:** `slice2-1-calendar-slots`, `slice2-2-premium-calendar`, `slice2-3-calendar-fix`, `slice2-4-calendar-weeks`, `slice2-5-clean-calendar`, `slice2-6-eastern-timezone` — later contains previous superset (count increments per iteration), so only latest `slice2-6` needs PR to alpha (contains all)
-- **Integration local:** `rm -rf .wrangler/state`, `docker compose up -d backend` auto runs `d1 migrations apply DB --local` before `pages dev`, `curl localhost:8788/api/calendar/slots?weeks=2` → weeks 2 source stub 144 slots (Mon-Fri 09-17 30min minus past, from tomorrow due to EXCLUDE_TODAY=true), workingHours slotMinutes 30 excludeToday true, first slot tomorrow 09:00 ET =13:00 UTC available true no details, health db ok r2 ok env local, content home 6 sections
-- **Deployment alpha/prod:** Feature branch `slice2-6` → PR vs `alpha` (protected Custom alpha only) → CI green 96 tests + build → merge → `https://alpha.profile-webapp.pages.dev/api/calendar/slots?weeks=2` → `source live` when secrets set (`GCAL_SERVICE_ACCOUNT_KEY` JSON encrypted + `BOOKING` + `PERSONAL` as Encrypted Secrets for Preview), `stub` otherwise, calendar UI 3-week Sun-Sat 7 per row max 3 weeks only next 14 selectable from tomorrow, badges padded px-4 py-1.5/px-4 py-2 not close to border, close ✕ button, interval 9:00-9:30 ET smaller buttons px-3 py-2.5 text-xs gap-3 no border overlap on hover (was px-4 py-3 overlapping 5:30-6:00), no privacy note, no blog/login, combined with requirements per your note
-
-
-### Current Deployment — Slice 1-2 Complete ✅
-
-- **Local Docker Integration:**
-  - `docker compose up -d backend` → `GET /api/health` → `{status ok, db ok, r2 ok, env local, d1Ms ~15-38, r2Ms ~26-55}` — both D1+R2 checked for both envs (preview alpha R2 `portfolio-images-alpha` and prod R2 `portfolio-images` are real buckets now that R2 enabled)
-  - `GET /api/content/home` → `{page.slug home, title Jane Doe — Designer & Developer, sections 6 ordered hero→services→about→testimonials→cta→gallery, items per section 1,6,1,3,1,6 =18 total}` — from D1 local or fallback `X-Content-Source: fallback-local-no-table` when Miniflare empty (remote uses real D1 via `--remote` migrations)
-  - `GET /api/content/unknown` → 404 Page not found
-  - Frontend `http://localhost:5173` → clean premium UI (no 🚀 BOLD LOCAL ENV banner, no infra health details), Hero with badge, Services 6 cards icons w-12 h-12 circles not bar, About gap-12 no duplicate About pill, Testimonials stars, CTA banner buttons px-8 py-4 breathing room (fixed from px-7 undefined), Gallery hover, Calendar placeholder premium card, Footer 3-col — mobile 1 col, no blog/login (Services, About, Testimonials, Calendar, Contact only)
-  - `/health` UI: `http://localhost:5173/health` → System Health Debug with DB:ok R2:ok env local — env only at /health, not main per user request
-
-- **Cloudflare Pages:**
-  - Project `profile-webapp` — Production branch `main`, Preview Custom `alpha` only (full isolation, see Branch Control screenshot)
-  - Choose Environment: Preview `ENVIRONMENT=alpha, SITE_URL=https://alpha.profile-webapp.pages.dev, BOOKING_CALENDAR_ID=alpha-booking@..., PERSONAL=alpha-personal@..., WORKING_HOURS 09:00-17:00, WORKING_DAYS 1-5, SLOT 30` + D1 `DB` → `portfolio-db-alpha` ID `30b1ea40-63cd-41ef-84d5-2d9007bea311` + R2 `portfolio-images-alpha`
-  - Production: `ENVIRONMENT=production, SITE_URL=https://profile-webapp.pages.dev, BOOKING prod-...` + D1 `portfolio-db` ID `f6dfc0c2-a7db-4e4a-b2de-abc5926fbf8b` + R2 `portfolio-images`
-  - **Before R2 enabled:** R2 buckets commented out in `wrangler.toml` due to `Please enable R2 [10042]` (needs billing, checkout blocked) → health returned `r2:skipped` 200 OK (temporary workaround). **After R2 active** (you activated): R2 uncommented → buckets created via `wrangler r2 bucket create portfolio-images(-alpha)` via Docker with `CLOUDFLARE_API_TOKEN` → health `r2:ok` for both envs (you saw R2: ok in alpha)
-  - Deployments:
-    - `alpha` at `c4a42f1` (old bold visual) → Production when prod was alpha, then after fixing branch control + `wrangler.toml` preview=alpha DB, production=main, `alpha` became Preview
-    - `slice1-1-portfolio-content` `97ea9ce` (content display) → `slice1-2-ui-polish` `c8b746d` → `slice1-3-clean-ui` `5113cfa` (remove debug banners, fix icons, About spacing) → `slice1-4-premium-ui` `76bac13` (Tristan CPA premium) → `slice1-5-button-fix` `099eecc` (fix px-7 undefined → px-8 py-4 buttons) — each later contains previous, so only latest needs PR
-    - `main` at `fb93c86` Merge PR #6 from alpha (includes doc/Setup.md + R2 enable) + later merges → `https://profile-webapp.pages.dev`
-  - **Current remote after you enabled R2 and merged?** You reported `alpha.profile-webapp.pages.dev` empty earlier because `alpha` branch was empty initial `f228e03` (no deployment), then after merging Slice 0 fix `02944b0` + `be949cb` trigger + `c4a42f1` bold visual, it showed bold. After Slice 1 premium polish + button fix (slice1-5), needs PR `slice1-5-button-fix` → `alpha` → `https://alpha.profile-webapp.pages.dev` should show premium clean UI without bold debug, with `R2: ok`, 6 sections from alpha D1 (via remote `d1 migrations apply portfolio-db-alpha --remote` for 0002 seed). Then PR `alpha` → `main` → prod `https://profile-webapp.pages.dev` same.
+**Slice 4 — Cancellation + Confirm ✅**
+- `GET /api/cancel/[token]`: `params.token` → DELETE GCal event (primary + booking group) + status cancelled + cache invalidate `X-Cache-Invalidate`, returns HTML + JSON
+- `GET /api/booking/confirm/[token]`: For double opt-in Option 1 (implemented in `slice3-14` then reverted to immediate per your final request) — verifies expiry 30min, creates Google event only after click with purpose, inserts only after Google 200, deletes pending, sends final email with Meet+purpose+cancel+.ics
 
 ## Quick Start with Docker (Recommended — bypasses host x2pagentd proxy 503)
 
-### Prerequisites
-- Docker + Docker Compose
-- No host `npm install` needed — Docker bypasses proxy
-
-### 1. Start full stack
-
 ```bash
-# Backend auto-migrates local D1 now (fix for no such table: pages)
+# Backend auto-migrates local D1
 docker compose up -d --build backend
-docker compose logs backend -f  # wait Ready on http://0.0.0.0:8788 + mappings DB: portfolio-db (f6dfc0c2) R2: portfolio-images
+docker compose logs backend -f  # wait Ready 0.0.0.0:8788
 
-# Health — both D1+R2 for both envs (preview alpha DB+R2 and prod DB+R2)
-curl http://localhost:8788/api/health | jq .
-# → {"status":"ok","db":"ok","r2":"ok","env":"local","checks":{"d1Ms":15,"r2Ms":26}}
+curl http://localhost:8788/api/health | jq . # → {status ok, db ok, r2 ok, env local, diagnostics{...}}
+curl http://localhost:8788/api/content/home | jq '.page.slug, (.sections|length)' # → home, 6
+curl "http://localhost:8788/api/calendar/slots?weeks=1" | jq . # → weeks 1 source stub|live 80 slots, _t busts cache
+curl http://localhost:8788/api/debug/diag | jq . # → booleans, no PII leak
 
-# Content — from D1 local or fallback seed same as 0002_seed.sql when Miniflare empty
-curl http://localhost:8788/api/content/home | jq '.page.title, (.sections | length)'
-# → "Jane Doe — Designer & Developer", 6
-curl http://localhost:8788/api/content/home | jq '.sections[] | {type, heading, items: (.items | length)}'
-# → hero 1, cards-grid 6, text-block 1, testimonials 3, cta-banner 1, image-gallery 6 = 18 items
-
-# Frontend at 5173 proxies /api to backend
 docker compose up -d frontend
-curl http://localhost:5173/api/content/home | jq '.page.slug, (.sections | length)'  # → home, 6 via proxy
 open http://localhost:5173
-# → Clean premium UI (no BOLD ENV banner, no infra health details per user request, env only at /health):
-#   Nav sticky blur + Playfair logo, Hero badge + Playfair headline + stats bar + dual CTA + image offset + floating card, Services 6 cards icons w-12 h-12 rounded-xl bg-slate-50 border flex-none not full-width bar (fixed from screenshot weird sizing), About gap-12 lg:gap-16 py-20 no duplicate About pill, Testimonials stars, CTA banner buttons px-8 py-4 breathing room (fixed from px-7 undefined text close to border), Gallery hover scale, Calendar premium card no raw API path, Footer 3-col no blog/login (only Services/About/Testimonials/Calendar/Contact per requirement, combining Tristan CPA premium aesthetic with our calendar)
-# /health debug page:
-open http://localhost:5173/health
-# → System Health Debug with DB:ok R2:ok env local — env only here, not main
+open http://localhost:5173/health # debug only
 
 docker compose down -v
 ```
 
-### 2. Tests via Docker (no host proxy)
+### Tests via Docker (no host proxy)
 
 ```bash
-# Frontend unit (9 files, 29 tests): api 8, App 5 clean UI, useContent 4, Hero 2, CardsGrid 2, TextBlock 2, Testimonials 2, CTABanner 2, Gallery 2
-docker run --rm -v "$PWD":/app -w /app node:20 npm test -- --run
-
-# Workers unit (4 files, 31 tests): env 10, health 8 (both alpha+prod require D1+R2 R2:ok), content lib 4, content endpoint 9 (404, ordered, filtered, config, meta, cache, empty) + explicit alpha and prod env checks
-docker run --rm -v "$PWD":/app -w /app node:20 npm run test:workers -- --run
-
-# Both
-docker compose --profile test run --rm tests
-
-# Total 95→96 tests green (42-43 FE +53 BE) — Slice 2 complete
+docker run --rm -v "$PWD":/app -w /app node:20 npm run lint      # tsc --noEmit
+docker run --rm -v "$PWD":/app -w /app node:20 npm run build     # dist 0.69KB html + 9KB css + 195KB js
+docker run --rm -v "$PWD":/app -w /app node:20 npm test -- --run # FE 14 files 53 tests
+docker run --rm -v "$PWD":/app -w /app node:20 npm run test:workers -- --run # BE 9 files 69 tests (122 total)
 ```
 
-### 3. Build
+Live local with real GCal + email (safe, .dev.vars gitignored):
 
 ```bash
-docker run --rm -v "$PWD":/app -w /app node:20 npm run build
-# → dist/index.html 0.46KB, css 8.76KB (premium Tristan CPA + Nicepage expanded utilities), js 166KB (50KB gz)
+# Create .dev.vars from original SA JSON via jq -c (single line, never commit):
+cat ~/Downloads/portfolio-webapp-*.json | jq -c . > /tmp/sa.json
+cat > .dev.vars <<EOF
+GCAL_SERVICE_ACCOUNT_KEY=$(cat /tmp/sa.json)
+BOOKING_CALENDAR_ID=4b320f7127d04517322eed13a69ecb276f4f371ac7684a6c8d10a5c03b5bf4a0@group.calendar.google.com
+PERSONAL_CALENDAR_ID=metagtmtest1@gmail.com
+RESEND_API_KEY=re_...
+TURNSTILE_SECRET_KEY=...
+EMAIL_FROM=onboarding@resend.dev
+GOOGLE_OAUTH_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-...
+GOOGLE_OAUTH_REFRESH_TOKEN=1//04p...
+BOOKING_MAX_PER_WEEK=0
+BOOKING_LIMIT_ENABLED=false
+EOF
+docker compose up -d backend
+curl "http://localhost:8788/api/debug/check-calendar?write=true" | jq .checks.writeTest # ok:true
 ```
 
-## Cloudflare Setup — One-time (Docker-wrapped wrangler to bypass proxy)
+## Cloudflare Setup — One-time (Docker-wrapped wrangler)
 
-### 1. API Token — Fetch (no localhost, OAuth fails behind proxy)
+### 1. API Token
+- https://dash.cloudflare.com/profile/api-tokens → Create Custom Token → Perms Account: `D1:Edit, R2:Edit, Pages:Edit, Scripts:Edit` + Zone `Workers Routes:Edit` → Copy raw (no Bearer/quotes) → `export CLOUDFLARE_API_TOKEN=...` → verify via Docker `wrangler whoami`
 
-- **https://dash.cloudflare.com/profile/api-tokens → Create Token → Create Custom Token** (NOT template)
-- Perms Account: `D1:Edit, Workers R2 Storage:Edit, Cloudflare Pages:Edit, Workers Scripts:Edit` + optional KV, Tail, Builds Config, etc (see doc/Setup.md example summary)
-- Zone: `Workers Routes:Edit` All zones
-- Copy raw token (no Bearer, no quotes, no newline)
-- Verify:
-```bash
-env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
-CLOUDFLARE_API_TOKEN=your_token npx wrangler whoami
-# Docker:
-docker run --rm -v "$PWD":/app -w /app -e CLOUDFLARE_API_TOKEN=your_token node:20 npx wrangler whoami
-```
-- Error `Invalid request headers [6003] Invalid format for Authorization header [6111]`: token wrapped in quotes, Bearer prefix, truncated, or newline — fix via `tr -d '\n'` and Copy button
-
-### 2. D1 + R2 Create — Scripted Idempotent (safe to re-run)
-
+### 2. D1 + R2 (Scripted Idempotent)
 ```bash
 chmod +x scripts/setup-cloudflare.sh
-CLOUDFLARE_API_TOKEN=your_token ./scripts/setup-cloudflare.sh
-# Prompt Which envs: alpha / prod / alpha+prod / all (preview+alpha+prod) + prod-only option fixed, Choose: alpha+prod → y
-# Creates:
-# D1: portfolio-db-alpha ID 30b1ea40-63cd-41ef-84d5-2d9007bea311 (ENAM) + portfolio-db ID f6dfc0c2-a7db-4e4a-b2de-abc5926fbf8b + optional preview
-# R2: portfolio-images-alpha + portfolio-images + preview (after R2 enabled via Dashboard → R2 Overview → Enable, requires card, free tier $0)
-# Before R2 enabled: R2 buckets commented out in wrangler.toml due to Please enable R2 [10042], health r2:skipped 200 OK workaround. After active: uncomment R2, health r2:ok for both envs (you saw R2: ok in alpha)
-# Migrations: d1 migrations apply --remote for all envs (0001_initial + 0002_seed), verifies tables pages, sections, section_items, contacts, bookings + seed page home title Jane Doe + 6 sections + 18 items
-# Updates wrangler.toml database_id real IDs automatically via Python (handles existing via d1 list, multiline bug fixed, top-level DB ID also updated)
-
-# Manual:
-export CLOUDFLARE_API_TOKEN=your_token
-docker run --rm -v "$PWD":/app -w /app -e CLOUDFLARE_API_TOKEN=$TOKEN node:20 npx wrangler d1 create portfolio-db-alpha
-docker run --rm -v "$PWD":/app -w /app -e CLOUDFLARE_API_TOKEN=$TOKEN node:20 npx wrangler r2 bucket create portfolio-images-alpha
-docker run --rm -v "$PWD":/app -w /app -e CLOUDFLARE_API_TOKEN=$TOKEN node:20 npx wrangler d1 migrations apply portfolio-db-alpha --remote
-docker run --rm -v "$PWD":/app -w /app -e CLOUDFLARE_API_TOKEN=$TOKEN node:20 npx wrangler d1 execute portfolio-db-alpha --remote --command "SELECT slug, title FROM pages"
+CLOUDFLARE_API_TOKEN=... ./scripts/setup-cloudflare.sh
+# Choose alpha+prod → creates D1 alpha 30b1ea40... + prod f6dfc0c2... + R2 portfolio-images-alpha + portfolio-images (needs R2 enabled via Dashboard R2 Overview, card free tier $0)
+# Alpha seed needs --env preview flag:
+docker run ... wrangler d1 migrations apply portfolio-db-alpha --remote --env preview
 ```
 
-### 3. Pages Project — Connect GitHub
+### 3. Pages Project
+- Dashboard → Workers & Pages → Create → Pages → Connect GitHub `metagtmtest1-design/profile-webapp`
+- Project `profile-webapp`, Production `main`, Preview Custom `alpha` only (full isolation), Build `npm run build`, Output `dist`, Node 20, vars via `wrangler.toml`, secrets via Dashboard Encrypted (PII calendar IDs + SA JSON + OAuth + Turnstile secret + Resend key)
+- Custom domains auto `*.pages.dev` + optional custom
 
-- **https://dash.cloudflare.com → Workers & Pages → Create → Pages → Connect to Git → Select metagtmtest1-design/profile-webapp** (if not visible as collaborator, go GitHub → Settings → Applications → Installed GitHub Apps → Cloudflare Pages → Configure → Only select repos → add profile-webapp → Save, refresh CF list)
-- Project name: `profile-webapp` (keep, not alpha) — single project handles both envs via branch control (full isolation, code+data both isolated, not just data). Production `profile-webapp.pages.dev`, Preview `alpha.profile-webapp.pages.dev` + custom domains optional
-- Production branch: `main` → Production env (`[env.production]` from wrangler.toml) → prod D1 `f6dfc0c2-...` + prod R2 `portfolio-images` + `ENVIRONMENT=production`, `SITE_URL=https://profile-webapp.pages.dev`, working hours vars
-- Preview branch: **Custom branches → `alpha` only** (screenshot) — NOT All non-production (which would share alpha DB across all PRs) and NOT None — only alpha gets preview, so `alpha` Preview env (`[env.preview]` holds alpha DB `30b1ea40-...` + R2 alpha + `ENVIRONMENT=alpha`, `SITE_URL=https://alpha.profile-webapp.pages.dev`) → `https://alpha.profile-webapp.pages.dev` — code+data isolated, push to alpha only rebuilds alpha, main unchanged until merged (Option B full isolation via Custom alpha only within single project, alternative 2 projects would be even more isolated but we keep 1 project)
-- Build settings: Framework `None` (Vite not auto-detected is okay), Build command `npm run build`, Output `dist`, Root `/`, `NODE_VERSION=20`, `ENVIRONMENT` var managed via `wrangler.toml` (Dashboard locks vars when toml has vars, only Secrets via Dashboard — "Environment variables are being managed through wrangler.toml. Only Secrets can be managed via the Dashboard.")
-- Branch not selectable for custom domain fix: branch must have at least one successful deployment (e.g. `alpha` was initially empty initial `f228e03` no deployment → not selectable) → merge Slice 0 fix `02944b0` + triggers into alpha and push → green → now selectable
-- **wrangler.toml conventions:** only `preview`/`production` env names supported by Pages (not custom `alpha`), so `[env.preview]` holds alpha, `[env.production]` holds prod, top-level `[vars]` not inherited so duplicate into each env vars, `pages_build_output_dir = "dist"`, Functions auto `functions/` (must be exact name, if typo `fucntions` not treated), file path `functions/api/content/[slug].ts:14` `params?.slug` → URL `/api/content/:slug` (dynamic `[slug]` = path param), POST body via `request.json()` and can have both path param + body `params.id` + `request.json()` in same handler (e.g. `admin/bookings/[id]/cancel.ts`)
+## GitHub PR Flow (Protected — No Direct Commits to Alpha/Main)
 
-### 4. Custom Domains — Alpha + Prod
-
-- Pages → Custom domains → Add `alpha.profile-webapp.pages.dev` auto + `profile-webapp.pages.dev` auto, or custom `alpha.somewebsite.com` → branch `alpha`, `somewebsite.com` → `main` (if domain on CF auto DNS+SSL)
-- **Final:** Production `main` → `https://profile-webapp.pages.dev/api/health` → `env:production db:ok r2:ok` clean UI no bold, Preview Custom `alpha` only → `https://alpha.profile-webapp.pages.dev/api/health` → `env:alpha db:ok r2:ok` (R2: ok after you enabled) + clean premium UI (no BOLD ENV on main, only at /health) — full isolation code+data
-
-## GitHub PR Flow with Alpha (Protected — No Direct Commits to Alpha/Main)
-
-**Agreed:** No direct commits to `alpha` and `main` (protected for verification). Feature branches only.
-
-- **Branch naming per new convention:** `slice# + commitcount + few words` e.g. `slice1-1-portfolio-content`, `slice1-2-ui-polish`, `slice1-3-clean-ui`, `slice1-4-premium-ui`, `slice1-5-button-fix` — each later contains previous (superset), so only latest needs PR
+Branch naming: `slice# + count + words` e.g. `slice3-16-revert-double-optin` — later contains previous superset, only latest needs PR.
 
 ```
-slice1-1-portfolio-content 97ea9ce (content display functional: backend content endpoint + frontend)
-  ↓ contains
-slice1-2-ui-polish c8b746d (+ Nicepage-inspired)
-  ↓ contains
-slice1-3-clean-ui 5113cfa (+ remove debug banners per user: BOLD LOCAL ENV should be in /health not main, infra health details removed, fix icons sizing w-12 not bar, About gap-12 no pill)
-  ↓ contains
-slice1-4-premium-ui 76bac13 (+ Tristan CPA premium accounting firm style: navy, Playfair, rounded-2xl, combined with our requirements: calendar kept, no blog/login per user note)
-  ↓ contains
-slice1-5-button-fix 099eecc (+ fix px-7 had no CSS text close to border → px-8 py-4 breathing room, UX 92%)
-  → PR vs alpha → merge → alpha.profile-webapp.pages.dev (client verification: clean premium UI, icons fixed, About spaced, buttons padded, no debug, calendar placeholder user-friendly, no blog/login)
-  → PR alpha → main → prod profile-webapp.pages.dev (prod D1+R2)
+slice3-14-double-optin df0fc2c → slice3-15 email fallback 1dede38 → slice3-16 revert c4479b9 (immediate) → alpha 46fd0de PR #29 + main 53cdded PR #30
+→ PR vs alpha → CI green → Merge → alpha.profile-webapp.pages.dev → verify .../health, .../debug/diag, .../calendar/slots?weeks=1 live → PR alpha → main → prod
 ```
 
-**Per PR Checklist:**
+## Slice 2-4 — What was done (1-2 sentences)
 
-1. Local Docker: `docker run ... npm test -- --run` 29 FE + `test:workers -- --run` 31 BE =60 green, `build` green, `compose up backend` → `curl /api/health` `db:ok r2:ok env local` + `curl /api/content/home` `home 6 sections`, `compose up frontend+backend` → `curl /api/content/home` via proxy `home 6`, browser `localhost:5173` clean UI (no bold env on main, only at `/health`, icons w-12 circles not bar, About gap-12 no pill, buttons px-8 py-4 spaced, no raw API paths, no blog/login, calendar premium card)
-2. Push feature branch via `isolated-git-env`: `docker exec isolated-git-env git -C /workspace/profile-webapp push origin slice1-5-button-fix`
-3. GitHub: Open PR https://github.com/metagtmtest1-design/profile-webapp/pull/new/slice1-5-button-fix → Base `alpha` (not main) per protected flow, CI `test` job (Node 20 runs `npm ci`, `lint`, `build`, `test -- --run`, `test:workers -- --run`) green — Note: Pages preview won't deploy for feature branch because Branch control Custom `alpha` only (only alpha builds, not all non-prod) — intentional for full isolation, can temporarily change to All non-prod to get preview URL `<hash>.pages.dev` if needed
-4. Merge PR into `alpha` via GitHub UI (you handle, not direct push) → Pages auto Preview deployment for `alpha` → `https://alpha.profile-webapp.pages.dev` → verify clean premium UI + `R2: ok` + `env alpha` at `/api/health` (both envs check D1+R2) + content from alpha D1 (after remote migrations `0002_seed` via `scripts/setup-cloudflare.sh` alpha+prod)
-5. Client approves alpha → PR `alpha` → `main` via GitHub UI → Production deployment `main` → `https://profile-webapp.pages.dev` → verify prod clean UI + `env production` + same 6 sections from prod D1, no bold debug
+- **Slice 2 — Calendar Slots:** Built `GET /api/calendar/slots?weeks=2` that returns next 14 days as 3-week Sun-Sat grid (7 per row, 21 max, only 14 selectable from tomorrow due to `EXCLUDE_TODAY=true`), Eastern timezone `America/New_York` with configurable `SLOT_DURATION_MINUTES` multiple 15 and working hours `09:00-17:00` Mon-Fri, SA JWT free/busy for booking + personal calendars, frontend `CalendarView` + `SlotPicker` with interval `9:00-9:30` ET and close button.
+- **Slice 3 — Booking Meeting:** Implemented `POST /api/booking` with Turnstile invisible anti-bot (single-use token reset fix), duplicate warning + confirm actually rebooks, FreeBusy race guard, upsert contact, Google Calendar event with 3-step retry for fake Meet (`forbiddenForServiceAccounts` without DWD + `Invalid conference type` on group calendars via SA) to bare live event + OAuth real Meet via `GOOGLE_OAUTH_*` in primary calendar (fixes unknown sender), purpose in summary `— ${purpose}` + description `Purpose:`, Resend 403 fallback to Gmail API, DB only after Google 200, max per week disabled via env, slot optimistic removal + cache bust, `!!!` logs + debug endpoints `diag` + `check-calendar`.
+- **Slice 4 — Cancellation + Confirm:** Added `GET /api/cancel/[token]` and `GET /api/booking/confirm/[token]` — cancel deletes Google event (primary + booking group) + status cancelled + `X-Cache-Invalidate`, confirm creates event only after email click for double opt-in Option 1 (now reverted to immediate per final request but code kept).
 
-## Deliverables — Slice 1 Complete ✅ (Premium UI)
+## Next Slices — Slice 0-4 Complete ✅ (Slice 5 Materials now optional)
 
-- `functions/_lib/content.ts` (safeParseConfig, orderBySort, filterVisible, types) + `content.test.ts` 4 tests
-- `functions/api/content/[slug].ts` `onRequestGet` params.slug dynamic route `[slug]` → URL `/api/content/:slug`, D1 JOIN pages→sections→items ordered/filtered, cache `max-age=300`, fallback seed for local no-table quirk, source header `d1` vs `fallback-local-no-table` + `content/[slug].test.ts` 9 tests (404, ordered, filtered, items ordered/filtered, config parse, meta, cache, empty) including alpha and prod envs both db:ok r2:ok
-- `src/lib/api.ts` `fetchContent(slug)` + `ContentResponse` Page/Section/Item 6 types + `HealthResponse` R2 required for both envs + `api.test.ts` 8 tests (health 5 + content 3)
-- `src/hooks/useContent.ts` + `useContent.test.tsx` 4 tests (loading→success, error, empty, refetch)
-- Sections premium (Nicepage + Tristan CPA combined with requirements per your note: calendar kept, no blog/login):
-  - `HeroSection` badge trust + Playfair headline 4xl/5xl + stats bar + dual CTA `btn-primary rounded-full` + image offset + floating card
-  - `CardsGrid` services pill removed, icon `w-12 h-12 rounded-xl bg-slate-50 border flex-none text-xl` span 22px fix for full-width bar bug screenshot 1, responsive `sm:grid-cols-2 lg:grid-cols-3`, empty `Services coming soon`
-  - `TextBlock` About pill removed (was repeated, screenshot 2), `gap-12 lg:gap-16 py-20 items-center`, image `aspect-[4/3] h-auto`, bio `max-w-[65ch]`, credentials box, no text close to image
-  - `Testimonials` pill removed, stars amber, avatar circle, `lg:grid-cols-3`, empty `Client feedback coming soon`
-  - `CTABanner` pill refined, `py-16` gradient, buttons `px-8 py-4 leading-none gap-4` fix for `px-7` undefined text close to border (your report), focus ring
-  - `ImageGallery` pill removed, `sm:grid-cols-2 lg:grid-cols-3`, hover scale, empty `Selected work coming soon`, alt descriptive
-- Common: `Nav` Playfair logo, `flex-wrap gap-4 sm:gap-6` + `hidden sm:inline` mobile, `Layout` no EnvBanner (clean), `Footer` 3-col Playfair + Services/Company no blog/login + CTA card `btn-primary w-full justify-center`, subtle bottom
-- Pages: `Home` pure content-driven (removed health fetching, details infra health, debug copy Try: GET /api/... and raw API path calendar), user-friendly loading/empty/error, calendar placeholder premium card no raw path, `Health` new page at `/health` route with EnvBanner + HealthBadge + Retry for debugging (env only at /health + /api/health, not main per your request)
-- `App.tsx` simple routing `pathname /health` → `<Health />` else `<Layout><Home /></Layout>`, title clean Portfolio, no bold env banner `🚀 BOLD LOCAL ENV` removed from main (moved to /health) per your request
-- `migrations/0002_seed.sql` — page home Jane Doe + 6 sections ordered 0-5 hero/services/about/testimonials/cta/gallery + 18 items (1,6,1,3,1,6) same as fallback
-- `docker-compose.yml` backend now runs `d1 migrations apply DB --local` before `pages dev` (fix for `no such table: pages` where pages dev `local-DB` vs `d1 create portfolio-db` binding name mismatch)
-- `wrangler.toml` — top-level prod ID `f6dfc0c2-...` for local, preview=alpha DB `30b1ea40-...` + R2 alpha `portfolio-images-alpha`, production=prod DB + R2 `portfolio-images`, only `preview`/`production` envs supported by Pages (not custom alpha) — preview holds alpha, production holds prod, vars duplicated (WORKING_HOURS etc) to fix inheritance warning, R2 bindings uncommented after R2 activation (R2: ok you saw in alpha, was skipped before billing, 10042 error)
-- `doc/Setup.md` — general reproducible setup guide (not project status) with token fetch Custom Token perms example summary, D1+R2 script idempotent `alpha/prod/alpha+prod/all` + `prod`-only option fixed, branch control screenshot Custom alpha only for full isolation, Functions naming `functions/` → URL `[slug]` param via `params.slug` line file:line, POST body via `request.json()` and both path param + body allowed, Docker workaround for `x2pagentd` proxy, protected branches, isolated-git-env container
-- Tests: 29 FE (App 5 clean UI no debug banners, api 8, useContent 4, Hero 2, CardsGrid 2, TextBlock 2, Testimonials 2, CTABanner 2, Gallery 2) + 31 BE (env 10, health 8 both alpha+prod require D1+R2 R2:ok, content lib 4, content endpoint 9) = 60 green via Docker `node:20`, build CSS 8.76KB JS 166KB, integration local content home 6 sections health db ok r2 ok env local via fallback, frontend proxied home 6
+- **Slice 5:** Admin Edit (was 6) — `upload-image` R2 + sections/items CRUD/reorder + `auth.ts` Access JWT + `ADMIN_BYPASS` dev flag + `EditableText`, `ImageUploader` client resize WebP 1MB/1200px → R2
+- **Slice 6:** Admin Bookings (was 7) — list JOIN + resend + cancel + purpose display + Meet link + purpose
+- **Slice 7:** Admin Contacts + Drive (was 8) — `?email=` filter + `PATCH` drive URL validation, full E2E book→contact→admin set Drive→visitor lookup
+- **Slice 8:** Polish + SEO + OG + perf headers + responsive final + error boundaries + Setup.md final + README final
 
-**Stats Final Slice 1:**
-- Frontend 12 files 43 tests + Workers 6 files 53 tests = **96 tests green** (vs Slice 0 26, 27, 29 intermediate)
-- Build dist 0.46KB html + 8.42-8.76KB css (premium Tristan CPA) + 166KB js (51KB gz)
-- Health both envs db:ok r2:ok required (preview alpha D1+R2 and prod D1+R2)
-- Content both envs home 6 sections ordered filtered cached 5-min
+**Optional — not required now:**
+- **Slice 5 old — Materials `POST /api/materials/lookup` email → Drive URL** — marked optional per your note, requires Drive OAuth `GOOGLE_OAUTH_*` + Drive folder + sharing. Can be implemented later as optional slice, not blocking admin or polish. If needed, specs: lookup by email returns Drive URL from contacts, admin sets Drive URL via PATCH.
 
-## Next Slices (Vertical, TDD, Branch Naming slice# + commitcount + words)
+Each: TDD red→green, feature branch `slice#-#-words` → PR vs `alpha` → client verifies `alpha.profile-webapp.pages.dev` → PR `alpha` → `main` → prod. No direct commits to `alpha`/`main` per rule.
 
-- **Slice 2:** Calendar Slots `GET /api/calendar/slots?weeks=2` — ✅ Complete: Eastern timezone America/New_York + configurable multiple 15 + exclude today + 3-week Sun-Sat 7 per row only 14 selectable + interval 9:00-9:30 + close button + premium UI 92%→100%
-- **Slice 3:** Booking `POST /api/booking` — Turnstile + dup check same email week → confirm intent? + FreeBusy re-check race guard + upsert contact + GCal event with `conferenceData` Meet link + cancel_token UUIDv4 + Resend email + cache invalidate + rate limit 3/email/week — ⭐ core
-- **Slice 4:** Cancellation `GET /api/cancel/{token}` path param `[token]` → DELETE GCal event + status cancelled + cache invalidate + one-time token + invalid page
-- **Slice 5:** Materials `POST /api/materials/lookup` email → Drive URL
-- **Slice 6:** Admin Edit — `upload-image` R2 + sections/items CRUD/reorder + `auth.ts` Access JWT + `ADMIN_BYPASS` dev flag + `EditableText`, `ImageUploader` client resize WebP 1MB/1200px → R2
-- **Slice 7:** Admin Bookings — list JOIN + resend + cancel
-- **Slice 8:** Admin Contacts + Drive — ?email= filter + PATCH drive URL validation, full E2E book→contact→admin set Drive→visitor lookup
-- **Slice 9:** Polish + SEO + OG + perf headers + responsive final + error boundaries + README setup
-
-Each: TDD red→green, feature branch `slice#-#-words` → PR vs `alpha` → client verifies `alpha.profile-webapp.pages.dev` → PR `alpha` → `main` → prod `profile-webapp.pages.dev`.
+See `doc/Setup.md` Sec 15-16 for Google project creation with calendar scopes + OAuth Playground refresh token + personal Gmail vs Workspace custom domain + Resend custom domain.
 
 ## TDD Notes
 
-- 1. Tell you test files + cases + impl → you confirm, 2. Write tests RED fail, 3. Implement GREEN pass, 4. Refactor, 5. Provide Docker commands + CF alpha verification + prod promotion
-- Docker for all: `docker run --rm -v "$PWD":/app -w /app node:20 npm ...` bypasses host proxy `x2pagentd` 503
-- Tests co-located: `**/*.test.tsx` FE jsdom + BE node env (not workers pool due to vitest pool compat)
-- Stub mode `STUB=true` for GCal/Resend/Turnstile, `LIVE_INTEGRATION` flag for real
-- Branch naming: `slice# + commitcount + few words` — later contains previous, so only latest needs PR
-
-## Decisions
-
-See `DECISIONS.md` for 22 decisions (D-01 to D-22) + env table + external services multi-env, plus updated in `.opencode/plans/` plan file with alpha env + TDD + GitHub integration. For Slice 1, additional conventions: R2 now required for both envs (was optional when billing blocked), Branch control Custom `alpha` only screenshot for full isolation code+data (Production `main` → prod D1+R2, Preview Custom `alpha` → alpha D1+R2), Functions `functions/` exact name (typo not treated) + `pages_build_output_dir = "dist"` in wrangler.toml:3, dynamic `[slug].ts:14` param via `params.slug` → URL `/api/content/:slug`, POST both path param + body allowed via `params.id` + `request.json()`, Health endpoint R2 check for both envs `db:ok r2:ok`, UI premium inspired by Tristan CPA accounting firm Behance + Nicepage combined with requirements per your note: calendar kept, no blog/login on screen, debug banners moved to `/health` not main, icons fixed w-12 h-12 not bar, About gap-12 no pill.
+Docker for all (bypasses `x2pagentd` 503), tests co-located `**/*.test.*`, stub mode `STUB=true`, Branch naming superset chain.
 
 ## Troubleshooting
 
-- **R2 10042 Please enable R2:** Enable via Dash → R2 Overview → Enable (needs card, free tier $0 stays). Before enable, health `r2:skipped` workaround with R2 commented out in toml. After enable, uncomment R2 + buckets `portfolio-images(-alpha)` + health `r2:ok` for both envs you saw.
-- **wrangler.toml env.alpha not supported:** Pages only preview/production — use preview for alpha DB.
-- **Branch not selectable for custom domain:** Needs successful deployment — push branch with code first.
-- **Host proxy x2pagentd CONNECT 443 No route to host:** Use Docker for npm and wrangler remote, token via `-e CLOUDFLARE_API_TOKEN`.
-- **Invalid uuid local-placeholder:** Replace placeholder IDs with real from `d1 create` — top-level DB ID `f6dfc0c2-...` prod, preview DB `30b1ea40-...` alpha, script auto-updates.
-- **workerd ENOENT:** Use `node:20` debian not alpine for backend (glibc).
-- **TS2591 process:** Add `@types/node` + `node` to tsconfig types.
-- **Double --run:** package.json test must be `vitest` not `vitest --run`, CI adds `-- --run`.
-- **Content endpoint no such table: pages:** Apply migrations via binding name `DB` not database name `portfolio-db`? Actually need `d1 migrations apply DB --local` and backend compose runs migrations before `pages dev`.
-- **Buttons text close to border:** `px-7` had no CSS rule (only px-3,4,6,8) → horizontal padding 0, fixed to `px-8 py-4 leading-none gap-4` breathing room.
-- **Icons weird sizing screenshot 1:** Old full-width gray bar tiny centered — fixed to `w-12 h-12 rounded-xl bg-slate-50 border flex-none text-xl` span 22px.
-- **About text too close to image + About pill repeated screenshot 2:** Fixed `gap-12 lg:gap-16 py-20 items-center`, removed About pill.
+- **R2 10042:** Enable via Dashboard R2 Overview (card free tier $0)
+- **wrangler.toml env.alpha not supported:** Pages only preview/production — use preview for alpha
+- **Branch not selectable:** Needs successful deployment first
+- **Host proxy x2pagentd 443 No route:** Use Docker for npm + wrangler
+- **Invalid uuid placeholder:** Replace with real IDs from `d1 create`, script auto-updates
+- **no such table: pages locally:** Backend runs `d1 migrations apply DB --local` before dev, plus fallback seed
+- **Buttons px-7 no CSS:** Fixed to px-8 py-4, Today badge px-4 py-1.5, SlotPicker px-3 py-2.5 no overlap
+- **Turnstile verification failed after confirm:** Tokens single-use → reset via widgetIdRef
+- **Fake Meet fake-xxxx:** SA cannot attendees without DWD 403 + group calendar 400 invalid type → retry bare + OAuth primary calendar
+- **Resend 403 only to own email:** Verify domain at resend.com/domains + EMAIL_FROM secret, or Gmail fallback via OAuth gmail.send scope
