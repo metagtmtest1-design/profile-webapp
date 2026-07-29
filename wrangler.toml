@@ -63,8 +63,9 @@ TIMEZONE = "America/New_York"
 TURNSTILE_SITE_KEY = "0x4AAAAAAD8-3h6x-RUDasMf"
 BOOKING_MAX_PER_WEEK = "0"
 BOOKING_LIMIT_ENABLED = "false"
-ADMIN_BYPASS = "true"
-# ADMIN_BYPASS true for alpha preview to allow testing without Access yet — can set false when Access configured
+ADMIN_BYPASS = "false"
+# ADMIN_BYPASS now false in alpha preview — enforcing real passwordless Google login via Zero Trust Access (dark-shape-c348.cloudflareaccess.com)
+# Previously true to allow testing without Access, now Access configured with Google IdP + Allow-Admin-Emails policy
 # BOOKING_CALENDAR_ID and PERSONAL_CALENDAR_ID + ADMIN_EMAILS as Encrypted Secrets via Dashboard (PII not public)
 
 # Production env: main branch https://profile-webapp.pages.dev
