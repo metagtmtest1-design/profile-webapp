@@ -70,7 +70,7 @@ export interface FetchOptions {
   cache?: RequestCache
 }
 
-async function fetchJson(url: string, options: FetchOptions & { method?: string } = {}) {
+export async function fetchJson(url: string, options: FetchOptions & { method?: string } = {}) {
   const { timeoutMs = 5000, signal, method = 'GET', cache } = options as any
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)
