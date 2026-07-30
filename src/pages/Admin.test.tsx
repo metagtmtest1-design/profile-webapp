@@ -7,32 +7,9 @@ vi.mock('../hooks/useAdminAuth', () => ({
   useAdminAuth: (...args: any[]) => mockUseAdminAuth(...args),
 }))
 
-const mockUseAdminContent = vi.fn()
-vi.mock('../hooks/useAdminContent', () => ({
-  useAdminContent: (...args: any[]) => mockUseAdminContent(...args),
-}))
-
-vi.mock('../lib/api', async () => {
-  const actual = await vi.importActual<any>('../lib/api')
-  return {
-    ...actual,
-    fetchR2Usage: vi.fn().mockResolvedValue({ totalObjects: 0, totalMB: 0, percent: 0, warning: false, truncated: false, limitMB: 10240, guidance: 'safe' }),
-  }
-})
-
 describe('Admin page — Cloudflare Zero Trust Google login', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseAdminContent.mockReturnValue({
-      sections: [],
-      loading: false,
-      error: null,
-      updateSection: vi.fn(),
-      updateItem: vi.fn(),
-      reorderSections: vi.fn(),
-      reorderItems: vi.fn(),
-      refetch: vi.fn(),
-    })
   })
 
   it('shows loading state', () => {
