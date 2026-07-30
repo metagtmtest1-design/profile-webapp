@@ -70,7 +70,7 @@ export interface FetchOptions {
   cache?: RequestCache
 }
 
-export async function fetchJson(url: string, options: FetchOptions & { method?: string } = {}) {
+async function fetchJson(url: string, options: FetchOptions & { method?: string } = {}) {
   const { timeoutMs = 5000, signal, method = 'GET', cache } = options as any
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)
@@ -173,45 +173,6 @@ export interface BookingResponse {
   purpose?: string | null
   email?: string
   expiresAt?: string
-}
-
-export interface AdminAuthResponse {
-  authed: boolean
-  email?: string | null
-  bypass?: boolean
-  env?: string
-  error?: string
-  allowlistConfigured?: boolean
-  diagnostics?: any
-}
-
-export async function fetchAdminAuth(options: FetchOptions = {}): Promise<AdminAuthResponse> {
-  const { json } = await fetchJson('/api/admin/auth', { ...options, cache: 'no-store' } as any)
-  return json as AdminAuthResponse
-}
-
-export interface R2UsageResponse {
-  checkQuota: boolean
-  authed: boolean
-  email?: string | null
-  totalObjects: number
-  totalBytes: number
-  totalMB: number
-  percent: number
-  limitMB: number
-  limitBytes: number
-  warning: boolean
-  truncated: boolean
-  limits?: any
-  guidance?: string
-  objects?: { key: string; size: number; sizeKB?: number }[]
-  error?: string
-}
-
-export async function fetchR2Usage(checkQuota: boolean = false, options: FetchOptions = {}): Promise<R2UsageResponse> {
-  const url = checkQuota ? '/api/admin/r2-usage?checkQuota=true' : '/api/admin/r2-usage'
-  const { json } = await fetchJson(url, { ...options, cache: 'no-store' } as any)
-  return json as R2UsageResponse
 }
 
 export async function createBooking(payload: BookingPayload, options: FetchOptions = {}): Promise<BookingResponse> {

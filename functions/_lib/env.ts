@@ -71,9 +71,6 @@ const BOOKING_LIMIT_ENABLED_ALIASES = [
   'MAX_BOOKINGS_ENABLED',
 ]
 
-const ADMIN_BYPASS_ALIASES = ['ADMIN_BYPASS', 'ADMIN_BYPASS_ENABLED', 'BYPASS_ADMIN', 'ADMIN_BYPASS_FLAG']
-const ADMIN_EMAILS_ALIASES = ['ADMIN_EMAILS', 'ADMIN_EMAIL', 'ALLOWED_EMAILS', 'ADMIN_ALLOWLIST', 'ADMIN_ALLOWED_EMAILS']
-
 export function resolveEnvVar(env: any, aliases: string[]): string | undefined {
   if (!env) return undefined
   for (const key of aliases) {
@@ -171,33 +168,4 @@ export function isProduction(env: string | EnvironmentName): boolean {
 
 export function isLocal(env: string | EnvironmentName): boolean {
   return env === 'local' || env === 'test'
-}
-
-export function getAdminBypassRaw(env: any): string | undefined {
-  return resolveEnvVar(env, ADMIN_BYPASS_ALIASES)
-}
-
-export function getAdminEmailsRaw(env: any): string | undefined {
-  return resolveEnvVar(env, ADMIN_EMAILS_ALIASES)
-}
-
-export function isAdminBypassEnabled(env: any): boolean {
-  const raw = getAdminBypassRaw(env)
-  if (raw !== undefined) {
-    const lower = String(raw).toLowerCase().trim()
-    if (['true', '1', 'yes', 'on', 'enabled'].includes(lower)) return true
-    if (['false', '0', 'no', 'off', 'disabled'].includes(lower)) return false
-    return Boolean(raw)
-  }
-  const envName = getEnvironment(env as any)
-  return envName === 'local' || envName === 'test'
-}
-
-export function getAdminAllowlistFromEnv(env: any): string[] {
-  const raw = getAdminEmailsRaw(env)
-  if (!raw) return []
-  return String(raw)
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter((s) => s.length > 0)
 }

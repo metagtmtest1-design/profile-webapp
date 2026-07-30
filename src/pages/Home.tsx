@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useContent } from '../hooks/useContent'
 import { HeroSection } from '../components/sections/HeroSection'
 import { CardsGrid } from '../components/sections/CardsGrid'
@@ -9,7 +9,6 @@ import { ImageGallery } from '../components/sections/ImageGallery'
 import { CalendarView } from '../components/calendar/CalendarView'
 import { SlotPicker } from '../components/calendar/SlotPicker'
 import { BookingForm } from '../components/calendar/BookingForm'
-import { ManageBookings } from '../components/calendar/ManageBookings'
 import { useCalendar } from '../hooks/useCalendar'
 import { TIMEZONE_LABEL } from '../lib/constants'
 import { generateIcsContent, downloadIcsFile } from '../lib/ics'
@@ -39,17 +38,6 @@ export function Home() {
     if (!selectedDate) return []
     return grouped[selectedDate] || []
   }, [selectedDate, grouped])
-
-  // Listen for cancellation from ManageBookings to refetch calendar (slot becomes free again)
-  useEffect(() => {
-    const handler = (e: any) => {
-      console.log(`!!! HOME_CANCEL_EVENT_RECEIVED bookingId=${e.detail?.bookingId} refetching calendar`)
-      refetchCalendar()
-      setTimeout(() => refetchCalendar(), 2000)
-    }
-    window.addEventListener('bookings-cancelled', handler as any)
-    return () => window.removeEventListener('bookings-cancelled', handler as any)
-  }, [refetchCalendar])
 
   if (loading) {
     return (
@@ -167,8 +155,6 @@ export function Home() {
           )}
         </div>
       </section>
-
-      <ManageBookings />
     </div>
   )
 }
