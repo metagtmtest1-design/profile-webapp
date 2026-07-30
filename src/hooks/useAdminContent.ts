@@ -108,9 +108,6 @@ export function useAdminContent(): UseAdminContentReturn {
     } as any)
     setSections((prev) =>
       prev.map((sec) => {
-        if (sec.section_id && sec.id !== sectionId && (sec as any).id !== sectionId) {
-          // sec.id is section id
-        }
         if (sec.id !== sectionId) return sec
         const itemMap = new Map(sec.items.map((it) => [it.id, it]))
         const reordered = orderedIds.map((id, idx) => ({ ...itemMap.get(id)!, sort_order: idx } as AdminItem)).filter(Boolean)

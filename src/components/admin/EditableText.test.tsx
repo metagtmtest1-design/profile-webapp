@@ -48,7 +48,7 @@ describe('EditableText — inline edit for admin', () => {
   })
 
   it('shows saving state', async () => {
-    const onSave = vi.fn(() => new Promise((res) => setTimeout(res, 100)))
+    const onSave = vi.fn().mockImplementation(() => new Promise<void>((res) => setTimeout(() => res(), 100)))
     render(<EditableText value="Test" onSave={onSave} />)
     fireEvent.click(screen.getByText('Test'))
     const input = await screen.findByDisplayValue('Test')
