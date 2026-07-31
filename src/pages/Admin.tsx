@@ -7,9 +7,25 @@ import { fetchR2Usage } from '../lib/api'
 
 function getOldKeyFromUrl(url?: string | null): string | undefined {
   if (!url) return undefined
-  if (url.startsWith('/api/images/')) return url.replace('/api/images/', '')
-  if (url.startsWith('portfolio/')) return url
-  return undefined
+  try {
+    let path = url
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      const u = new URL(url)
+      path = u.pathname
+    }
+    path = path.split('?')[0]
+    if (path.includes('/api/images/')) {
+      const idx = path.indexOf('/api/images/')
+      let key = path.slice(idx + '/api/images/'.length)
+      if (key.startsWith('/')) key = key.slice(1)
+      if (key.startsWith('portfolio/')) return key
+    }
+    if (path.startsWith('/api/images/')) return path.replace('/api/images/', '')
+    if (path.startsWith('portfolio/')) return path.split('?')[0]
+    return undefined
+  } catch {
+    return undefined
+  }
 }
 
 export function Admin() {
