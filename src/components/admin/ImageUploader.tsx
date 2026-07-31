@@ -156,7 +156,7 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
             {sizeBadge || 'PNG if ≤1MB else WebP within 1MB — max 1200px — 1MB max'}
           </div>
           {currentImageUrl && <div className="text-[10px] text-gray-400 truncate mt-0.5" title={currentImageUrl}>Current image: {currentImageUrl.split('/').pop()?.slice(0,30)}</div>}
-          {!currentImageUrl && <div className="text-[10px] text-gray-400">100 images ×400KB avg=40MB/env, 80MB combined &lt;1% of 10GB</div>}
+          {!currentImageUrl && <div className="text-[10px] text-gray-400">100 images ×400KB avg=1MB max, 80MB combined &lt;1% of 10GB</div>}
         </div>
         <button type="button" onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }} className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-full text-[11px] font-semibold hover:bg-black shrink-0 min-h-8 min-w-8" aria-label={currentImageUrl ? 'Replace image button' : 'Select image button'}>
           {currentImageUrl ? 'Select new' : 'Select image'}
