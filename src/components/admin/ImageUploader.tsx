@@ -156,7 +156,7 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
             {sizeBadge || 'PNG if ≤1MB else WebP within 1MB — max 1200px — 1MB max'}
           </div>
           {currentImageUrl && <div className="text-[10px] text-gray-400 truncate mt-0.5" title={currentImageUrl}>Current image: {currentImageUrl.split('/').pop()?.slice(0,30)}</div>}
-          {!currentImageUrl && <div className="text-[10px] text-gray-400">100 images ×400KB avg=40MB/env, 80MB combined &lt;1% of 10GB</div>}
+          {!currentImageUrl && <div className="text-[10px] text-gray-400">100 images ×400KB avg=1MB max, 80MB combined &lt;1% of 10GB</div>}
         </div>
         <button type="button" onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }} className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-full text-[11px] font-semibold hover:bg-black shrink-0 min-h-8 min-w-8" aria-label={currentImageUrl ? 'Replace image button' : 'Select image button'}>
           {currentImageUrl ? 'Select new' : 'Select image'}
@@ -165,12 +165,7 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
 
       {error && <div className="text-[11px] text-red-700 bg-red-50 p-2 rounded-lg border border-red-200" role="alert">{error}</div>}
 
-      <details className="text-[10px] text-gray-400">
-        <summary className="cursor-pointer hover:text-gray-600">Free tier info — why PNG→WebP + replace</summary>
-        <div className="mt-1 p-2 bg-slate-50 rounded-lg border text-[11px] leading-relaxed">
-          Client resize PNG if ≤1MB (lossless) else WebP within 1MB, max 1200px — 0 Worker CPU. Server validates ≤1MB. oldKey delete-before-put stays under 10GB for 100 images (40MB per env, 80-100MB combined &lt;1% of 10GB). Env isolation alpha bucket portfolio-images-alpha + prod portfolio-images share account quota safe. Browser→Worker 100MB Free limit, Worker→R2 5 GiB single PUT, app 1MB well below, no nginx config.
-        </div>
-      </details>
+
     </div>
   )
 }
