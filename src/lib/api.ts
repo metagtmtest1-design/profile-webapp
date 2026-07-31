@@ -70,16 +70,16 @@ export interface FetchOptions {
   cache?: RequestCache
 }
 
-export async function fetchJson(url: string, options: FetchOptions & { method?: string } = {}) {
-  const { timeoutMs = 5000, signal, method = 'GET', cache } = options as any
+export async function fetchJson(url: string, options: FetchOptions & { method?: string; body?: string } = {}) {
+  const { timeoutMs = 5000, signal, method = 'GET', cache, body } = options as any
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)
   if (signal) {
     signal.addEventListener('abort', () => controller.abort(signal.reason))
   }
   try {
-    console.log(`!!! API_FETCH_START url=${url} cache=${cache || 'default'}`)
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, signal: controller.signal, cache: cache || 'no-store' } as any)
+    if (import.meta.env.DEV) console.log(`!!! API_FETCH_START url=${url} method=${method} cache=${cache || 'default'} hasBody=${!!body} bodyLen=${body?.length || 0}`)
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body, signal: controller.signal, cache: cache || 'no-store' } as any)
     const json = await res.json().catch(() => null)
     if (!res.ok) {
       throw new ApiError(`Request failed with ${res.status}`, res.status, json)
