@@ -37,17 +37,17 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
       const msg = `Invalid file type ${file.type} — only images allowed`
       setError(msg)
       onError?.(msg)
-      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_INVALID_TYPE type=${file.type}`)
+      console.log(`!!! IMAGE_UPLOADER_INVALID_TYPE type=${file.type}`)
       return
     }
 
     try {
       setUploading(true)
-      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_START name=${file.name} size=${file.size} type=${file.type}`)
+      console.log(`!!! IMAGE_UPLOADER_START name=${file.name} size=${file.size} type=${file.type}`)
 
       const resized = await resizeImage(file, MAX_DIMENSION, MAX_FILE_SIZE)
 
-      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_RESIZED orig=${resized.originalSize} final=${resized.finalSize} format=${resized.format} ${resized.width}x${resized.height} q=${resized.quality}`)
+      console.log(`!!! IMAGE_UPLOADER_RESIZED orig=${resized.originalSize} final=${resized.finalSize} format=${resized.format} ${resized.width}x${resized.height} q=${resized.quality}`)
 
       // Preview — revoke previous blob URL to avoid leak
       try {
@@ -82,9 +82,9 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
       formData.append('file', resized.blob, `resized.${resized.format}`)
       if (oldKey) formData.append('oldKey', oldKey)
 
-      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_UPLOAD_START key=${oldKey || 'new'} format=${resized.format} size=${resized.finalSize}`)
+      console.log(`!!! IMAGE_UPLOADER_UPLOAD_START key=${oldKey || 'new'} format=${resized.format} size=${resized.finalSize}`)
 
-      const response = await fetch('/api/admin/upload-image', { method: 'POST', body: formData })
+      const response = await fetch('/api/admin/upload-image', { method: 'POST', body: formData, credentials: 'same-origin' })
 
       if (!response.ok) {
         const errJson = (await response.json().catch(() => ({ error: response.statusText }))) as any
@@ -92,7 +92,7 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
       }
 
       const result = (await response.json()) as any
-      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_UPLOAD_DONE key=${result.key} url=${result.url}`)
+      console.log(`!!! IMAGE_UPLOADER_UPLOAD_DONE key=${result.key} url=${result.url}`)
 
       setPreviewUrl(result.url)
       setLastResult({ size: result.size, format: result.format, width: resized.width, height: resized.height, quality: resized.quality, originalSize: resized.originalSize })
@@ -103,7 +103,7 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
       const msg = err?.message || String(err)
       setError(msg)
       onError?.(msg)
-      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_ERROR ${msg}`)
+      console.log(`!!! IMAGE_UPLOADER_ERROR ${msg}`)
     } finally {
       setUploading(false)
     }
