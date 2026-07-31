@@ -98,3 +98,48 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
     })
   }
 }
+
+export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params }) => {
+  const commonHeaders = {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*',
+  }
+
+  const authFail = requireAdminAuth(request, env)
+  if (authFail) return authFail
+
+  const authResult = isAdminAuthenticated(request, env)
+  const envName = getEnvironment(env as any)
+  const id = (params as any)?.id
+  if (!id) {
+    return new Response(JSON.stringify({ error: 'Missing id' }), { status: 400, headers: commonHeaders })
+  }
+
+  const db = env?.DB
+  if (!db) return new Response(JSON.stringify({ error: 'DB missing' }), { status: 500, headers: commonHeaders })
+
+  try {
+    console.log(`!!! ADMIN_SECTIONS_DELETE_START id=${id} env=${envName} email=${authResult.email}`)
+
+    const existingStmt = db.prepare('SELECT * FROM sections WHERE id = ?').bind(id)
+    const existing = await existingStmt.first()
+    if (!existing) {
+      return new Response(JSON.stringify({ error: `Section not found: ${id}` }), { status: 404, headers: commonHeaders })
+    }
+
+    // Delete its items first to stay free tier clean (no orphans), then section
+    const delItemsStmt = db.prepare('DELETE FROM section_items WHERE section_id = ?').bind(id)
+    await delItemsStmt.run()
+
+    const delSecStmt = db.prepare('DELETE FROM sections WHERE id = ?').bind(id)
+    await delSecStmt.run()
+
+    console.log(`!!! ADMIN_SECTIONS_DELETE_DONE id=${id}`)
+
+    return new Response(JSON.stringify({ success: true, id }), { status: 200, headers: commonHeaders })
+  } catch (e: any) {
+    console.log(`!!! ADMIN_SECTIONS_DELETE_ERROR id=${id} error=${e?.message}`)
+    return new Response(JSON.stringify({ error: `Delete failed: ${e?.message}` }), { status: 500, headers: commonHeaders })
+  }
+}

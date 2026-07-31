@@ -35,6 +35,8 @@ export function Admin() {
   const [quota, setQuota] = useState<any>(null)
   const [quotaLoading, setQuotaLoading] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
+  const [newSectionType, setNewSectionType] = useState('text-block')
+  const [newSectionHeading, setNewSectionHeading] = useState('')
 
   const handleCheckQuota = async () => {
     setQuotaLoading(true)
@@ -45,6 +47,20 @@ export function Admin() {
       setGlobalError(e?.message || String(e))
     } finally {
       setQuotaLoading(false)
+    }
+  }
+
+  const handleAddSection = async () => {
+    if (!newSectionHeading.trim()) {
+      setGlobalError('Heading required for new section')
+      return
+    }
+    try {
+      await content.createSection(newSectionType, newSectionHeading.trim())
+      setNewSectionHeading('')
+      setGlobalError(null)
+    } catch (e: any) {
+      setGlobalError(e?.message || String(e))
     }
   }
 
@@ -111,6 +127,24 @@ export function Admin() {
         <div className="max-w-5xl mx-auto px-6 py-24 text-center text-sm text-gray-500">Loading portfolio content…</div>
       ) : (
         <div className="max-w-6xl mx-auto px-6 py-8 space-y-10">
+          {/* Add / Remove section — per your request */}
+          <div className="p-4 border rounded-2xl bg-white shadow-sm">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Add / Remove Section — keeps hero, about, calendar simple, 100 images scenario</h3>
+            <div className="flex flex-wrap gap-2 items-center">
+              <select value={newSectionType} onChange={(e) => setNewSectionType(e.target.value)} className="px-3 py-2 border rounded-xl text-xs bg-white">
+                <option value="hero">hero</option>
+                <option value="text-block">text-block (About Me)</option>
+                <option value="cards-grid">cards-grid (Services)</option>
+                <option value="testimonials">testimonials</option>
+                <option value="cta-banner">cta-banner</option>
+                <option value="image-gallery">image-gallery</option>
+              </select>
+              <input type="text" value={newSectionHeading} onChange={(e) => setNewSectionHeading(e.target.value)} placeholder="New section heading — current" className="px-3 py-2 border rounded-xl text-xs min-w-[200px]" aria-label="New section heading" />
+              <button onClick={handleAddSection} className="px-4 py-2 bg-slate-900 text-white rounded-full text-xs font-semibold hover:bg-black" aria-label="Add section">Add section</button>
+              <span className="text-[11px] text-gray-500">Now: {sortedSections.length} sections — hero, text-block visible (simple), others hidden via migration 0004 — 40MB/env 80-100MB combined &lt;1% of 10GB</span>
+            </div>
+          </div>
+
           {sortedSections.map((section, secIdx) => {
             const isHidden = !section.is_visible
             const items = [...(section.items || [])].sort((a, b) => a.sort_order - b.sort_order)
@@ -136,6 +170,10 @@ export function Admin() {
                   <button aria-label={isHidden ? 'Show section' : 'Hide section'} onClick={async () => {
                     try { await content.updateSection(section.id, { is_visible: isHidden ? 1 : 0 } as any) } catch (e: any) { setGlobalError(e?.message) }
                   }} className="px-2 py-1 bg-white border rounded-full text-[10px] hover:border-slate-900">{isHidden ? 'Show' : 'Hide'}</button>
+                  <button aria-label="Delete section" onClick={async () => {
+                    if (!confirm(`Delete section ${section.type} "${section.heading}"? This deletes its ${section.items.length} items too.`)) return
+                    try { await content.deleteSection(section.id) } catch (e: any) { setGlobalError(e?.message) }
+                  }} className="px-2 py-1 bg-white border border-red-200 text-red-700 rounded-full text-[10px] hover:bg-red-50">Delete</button>
                 </div>
                 {isHidden && <div className="absolute inset-0 border-2 border-dashed border-amber-300 pointer-events-none" aria-hidden />}
 
