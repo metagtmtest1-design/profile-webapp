@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { resizeImage, isImageFile, MAX_FILE_SIZE, MAX_DIMENSION } from '../../lib/imageResize'
 
 export interface ImageUploaderProps {
@@ -12,71 +12,79 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentImageUrl || null)
-  const [info, setInfo] = useState<string | null>(null)
+  const [lastResult, setLastResult] = useState<{ size: number; format: string; width: number; height: number; quality?: number; originalSize: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [dragOver, setDragOver] = useState(false)
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  // Keep preview in sync when currentImageUrl prop changes after upload refetch — fixes stale thumb
+  useEffect(() => {
+    setPreviewUrl(currentImageUrl || null)
+  }, [currentImageUrl])
 
+  // Revoke object URLs to avoid memory leak — H1
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        try { URL.revokeObjectURL(previewUrl) } catch {}
+      }
+    }
+  }, [previewUrl])
+
+  const processFile = async (file: File) => {
     setError(null)
-    setInfo(null)
 
-    // Client validation: image only
     if (!isImageFile(file)) {
       const msg = `Invalid file type ${file.type} — only images allowed`
       setError(msg)
       onError?.(msg)
-      console.log(`!!! IMAGE_UPLOADER_INVALID_TYPE type=${file.type}`)
+      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_INVALID_TYPE type=${file.type}`)
       return
     }
 
     try {
       setUploading(true)
-      console.log(`!!! IMAGE_UPLOADER_START name=${file.name} size=${file.size} type=${file.type}`)
+      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_START name=${file.name} size=${file.size} type=${file.type}`)
 
-      // Resize: PNG if ≤1MB else WebP within 1MB, max 1200px, 0 Worker CPU
       const resized = await resizeImage(file, MAX_DIMENSION, MAX_FILE_SIZE)
 
-      console.log(
-        `!!! IMAGE_UPLOADER_RESIZED orig=${resized.originalSize} final=${resized.finalSize} format=${resized.format} ${resized.width}x${resized.height} q=${resized.quality} dim=${resized.usedFallbackDimension}`
-      )
+      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_RESIZED orig=${resized.originalSize} final=${resized.finalSize} format=${resized.format} ${resized.width}x${resized.height} q=${resized.quality}`)
 
-      // Show preview from blob — mock fallback for jsdom
+      // Preview — revoke previous blob URL to avoid leak
       try {
+        if (previewUrl && previewUrl.startsWith('blob:')) {
+          try { URL.revokeObjectURL(previewUrl) } catch {}
+        }
         if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
           const localPreview = URL.createObjectURL(resized.blob)
           setPreviewUrl(localPreview)
         }
       } catch {
-        // ignore preview in test env
+        // ignore in test env
       }
-      setInfo(`Resized ${resized.originalSize} → ${resized.finalSize} bytes, ${resized.width}×${resized.height}, format ${resized.format.toUpperCase()} ${resized.quality ? `q=${resized.quality}` : '(lossless)'} — 100 images avg 400KB =40MB per env, 80MB combined <1% of 10GB`)
 
-      // Client size check again after resize (should be ≤1MB)
+      setLastResult({
+        size: resized.finalSize,
+        format: resized.format,
+        width: resized.width,
+        height: resized.height,
+        quality: resized.quality,
+        originalSize: resized.originalSize,
+      })
+
       if (resized.finalSize > MAX_FILE_SIZE) {
-        const msg = `Resized file still >1MB (${resized.finalSize}) — cannot upload, stays in free tier`
+        const msg = `Resized still >1MB (${resized.finalSize})`
         setError(msg)
         onError?.(msg)
-        setUploading(false)
         return
       }
 
-      // Upload to R2 via admin endpoint — auth via Zero Trust Google (passwordless), ADMIN_BYPASS for local
       const formData = new FormData()
-      const filename = `resized.${resized.format}` // extension based on format
-      formData.append('file', resized.blob, filename)
-      if (oldKey) {
-        formData.append('oldKey', oldKey)
-      }
+      formData.append('file', resized.blob, `resized.${resized.format}`)
+      if (oldKey) formData.append('oldKey', oldKey)
 
-      console.log(`!!! IMAGE_UPLOADER_UPLOAD_START key=${oldKey || 'new'} format=${resized.format} size=${resized.finalSize}`)
+      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_UPLOAD_START key=${oldKey || 'new'} format=${resized.format} size=${resized.finalSize}`)
 
-      const response = await fetch('/api/admin/upload-image', {
-        method: 'POST',
-        body: formData,
-        // No Content-Type header — browser sets multipart boundary
-      })
+      const response = await fetch('/api/admin/upload-image', { method: 'POST', body: formData })
 
       if (!response.ok) {
         const errJson = (await response.json().catch(() => ({ error: response.statusText }))) as any
@@ -84,53 +92,89 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
       }
 
       const result = (await response.json()) as any
-      console.log(`!!! IMAGE_UPLOADER_UPLOAD_DONE key=${result.key} url=${result.url} size=${result.size}`)
+      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_UPLOAD_DONE key=${result.key} url=${result.url}`)
 
       setPreviewUrl(result.url)
-      setInfo(`Uploaded ${result.key} — ${result.size} bytes format ${result.format} — URL ${result.url}`)
+      setLastResult({ size: result.size, format: result.format, width: resized.width, height: resized.height, quality: resized.quality, originalSize: resized.originalSize })
 
       onUploadComplete(result)
-
-      // Clear input for next upload
       if (inputRef.current) inputRef.current.value = ''
     } catch (err: any) {
       const msg = err?.message || String(err)
       setError(msg)
       onError?.(msg)
-      console.log(`!!! IMAGE_UPLOADER_ERROR ${msg}`)
+      if (import.meta.env.DEV) console.log(`!!! IMAGE_UPLOADER_ERROR ${msg}`)
     } finally {
       setUploading(false)
     }
   }
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) await processFile(file)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) await processFile(file)
+  }
+
+  // Determine display URL — prefer previewUrl (uploaded) else current
+  const displayUrl = previewUrl || currentImageUrl || null
+  const sizeBadge = lastResult
+    ? `${lastResult.format.toUpperCase()} ${Math.round(lastResult.size / 1024)}KB ${lastResult.width}×${lastResult.height}${lastResult.quality ? ` q=${lastResult.quality}` : ' lossless'} — ${lastResult.originalSize}→${lastResult.size}`
+    : null
+
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-          disabled={uploading}
-          className="text-xs file:mr-3 file:px-4 file:py-2 file:rounded-full file:border-0 file:bg-slate-900 file:text-white file:text-xs hover:file:bg-black"
-        />
-        {uploading && <span className="text-[11px] text-gray-500 animate-pulse">Resizing + uploading… PNG if ≤1MB else WebP within 1MB, max 1200px</span>}
-      </div>
-
-      {previewUrl && (
-        <div className="mt-1">
-          <img src={previewUrl} alt="preview" className="w-32 h-32 object-cover rounded-xl border" />
-          <div className="text-[10px] text-gray-500 mt-1 break-all">{previewUrl}</div>
+      {/* Compact dashed dropzone — single thumb, not duplicate */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault()
+          setDragOver(true)
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            inputRef.current?.click()
+          }
+        }}
+        tabIndex={0}
+        className={`group border-2 border-dashed rounded-xl p-3 flex gap-3 items-center cursor-pointer transition-colors ${dragOver ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-900 hover:bg-slate-50'} ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+        role="button"
+        aria-label="Upload image — PNG if ≤1MB else WebP within 1MB, max 1200px — drop or click to replace"
+      >
+        <input ref={inputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={uploading} className="hidden" aria-hidden />
+        {displayUrl ? (
+          <img src={displayUrl} alt="current" className="w-20 h-20 object-cover rounded-lg border shrink-0" loading="lazy" />
+        ) : (
+          <div className="w-20 h-20 rounded-lg border border-dashed bg-slate-50 flex items-center justify-center text-[11px] text-gray-400 shrink-0">No image</div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-semibold flex items-center gap-2">
+            {uploading ? 'Resizing + uploading…' : 'Drop or click to replace'}
+            {uploading && <span className="w-3 h-3 border-2 border-gray-300 border-t-slate-900 rounded-full animate-spin" />}
+          </div>
+          <div className="text-[11px] text-gray-500 mt-0.5">
+            {sizeBadge || 'PNG if ≤1MB (lossless) else WebP within 1MB — max 1200px — 1MB max — 100 images 40MB/env'}
+          </div>
+          {currentImageUrl && <div className="text-[10px] text-gray-400 truncate mt-0.5" title={currentImageUrl}>Current: {currentImageUrl.split('/').pop()}</div>}
         </div>
-      )}
-
-      {info && <div className="text-[11px] text-gray-600 bg-slate-50 p-2 rounded-lg border">{info}</div>}
-
-      {error && <div className="text-[11px] text-red-700 bg-red-50 p-2 rounded-lg border border-red-200">{error}</div>}
-
-      <div className="text-[10px] text-gray-400">
-        Free tier safe: client resize PNG if ≤1MB (lossless) else WebP within 1MB, max 1200px — 0 Worker CPU. Server validates ≤1MB, oldKey delete-before-put stays under 10GB for 100 images (40MB per env, 80-100MB combined &lt;1% of 10GB). Env isolation: alpha bucket portfolio-images-alpha + prod portfolio-images share account quota but safe. Browser→Worker 100MB Free limit, Worker→R2 5 GiB single PUT, app 1MB well below, no nginx config.
       </div>
+
+      {error && <div className="text-[11px] text-red-700 bg-red-50 p-2 rounded-lg border border-red-200" role="alert">{error}</div>}
+
+      <details className="text-[10px] text-gray-400">
+        <summary className="cursor-pointer hover:text-gray-600">Free tier info — why PNG→WebP + replace</summary>
+        <div className="mt-1 p-2 bg-slate-50 rounded-lg border text-[11px] leading-relaxed">
+          Client resize PNG if ≤1MB (lossless) else WebP within 1MB, max 1200px — 0 Worker CPU. Server validates ≤1MB. oldKey delete-before-put stays under 10GB for 100 images (40MB per env, 80-100MB combined &lt;1% of 10GB). Env isolation alpha bucket portfolio-images-alpha + prod portfolio-images share account quota safe. Browser→Worker 100MB Free limit, Worker→R2 5 GiB single PUT, app 1MB well below, no nginx config.
+        </div>
+      </details>
     </div>
   )
 }

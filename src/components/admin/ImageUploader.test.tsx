@@ -58,7 +58,8 @@ describe('ImageUploader — PNG if ≤1MB else WebP within 1MB', () => {
 
   it('renders file input', () => {
     render(<ImageUploader onUploadComplete={vi.fn()} />)
-    expect(screen.getByText(/Free tier safe/i)).toBeInTheDocument()
+    expect(screen.getByText(/Drop or click to replace/i)).toBeInTheDocument()
+    expect(screen.getByText(/Free tier info/i)).toBeInTheDocument()
   })
 
   it('rejects non-image file type', async () => {
