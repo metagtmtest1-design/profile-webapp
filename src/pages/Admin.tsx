@@ -129,7 +129,7 @@ export function Admin() {
         <div className="max-w-5xl mx-auto px-6 py-8 space-y-10">
           {/* Add / Remove section — per your request */}
           <div className="p-4 border rounded-2xl bg-white shadow-sm">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Add / Remove Section — keeps hero, about, calendar simple, 100 images scenario</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Add / Remove Section</h3>
             <div className="flex flex-wrap gap-2 items-center">
               <select value={newSectionType} onChange={(e) => setNewSectionType(e.target.value)} className="px-3 py-2 border rounded-xl text-xs bg-white">
                 <option value="hero">Hero — Top landing section with headline</option>
@@ -141,7 +141,7 @@ export function Admin() {
               </select>
               <input type="text" value={newSectionHeading} onChange={(e) => setNewSectionHeading(e.target.value)} placeholder="New section heading — current" className="px-3 py-2 border rounded-xl text-xs min-w-[200px]" aria-label="New section heading" />
               <button onClick={handleAddSection} className="px-4 py-2 bg-slate-900 text-white rounded-full text-xs font-semibold hover:bg-black" aria-label="Add section">Add section</button>
-              <span className="text-[11px] text-gray-500">Now: {sortedSections.length} sections — hero, text-block visible (simple), others hidden via migration 0004 — 40MB/env 80-100MB combined &lt;1% of 10GB</span>
+              <span className="text-[11px] text-gray-500">Now: {sortedSections.length} sections — hero + about visible</span>
             </div>
           </div>
 

@@ -137,8 +137,7 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`group border-2 border-dashed rounded-xl p-3 flex gap-3 items-center cursor-pointer transition-colors ${dragOver ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-900 hover:bg-slate-50'} ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+        className={`group border-2 border-dashed rounded-xl p-3 flex gap-3 items-center transition-colors ${dragOver ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-900 hover:bg-slate-50'} ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
         aria-label="Upload image dropzone — PNG if ≤1MB else WebP within 1MB, max 1200px"
       >
         <input ref={inputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={uploading} className="hidden" aria-hidden />
@@ -158,7 +157,8 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
           {currentImageUrl && <div className="text-[10px] text-gray-400 truncate mt-0.5" title={currentImageUrl}>Current image: {currentImageUrl.split('/').pop()?.slice(0,30)}</div>}
           {!currentImageUrl && <div className="text-[10px] text-gray-400">100 images ×400KB avg=1MB max, 80MB combined &lt;1% of 10GB</div>}
         </div>
-        <button type="button" onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }} className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-full text-[11px] font-semibold hover:bg-black shrink-0 min-h-8 min-w-8" aria-label={currentImageUrl ? 'Replace image button' : 'Select image button'}>
+        <button type="button" onClick={() => inputRef.current?.click()} className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-full text-[11px] font-semibold hover:bg-black shrink-0 min-h-8 min-w-8 flex items-center gap-1" aria-label={currentImageUrl ? 'Replace image button' : 'Select image button'}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           {currentImageUrl ? 'Select new' : 'Select image'}
         </button>
       </div>
