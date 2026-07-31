@@ -55,6 +55,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return new Response(JSON.stringify({ error: `Page not found: ${pageSlug}` }), { status: 404, headers })
     }
 
+    // Prevent duplicate hero per page (H4) — only one hero allowed to keep landing simple
+    if (type === 'hero') {
+      const existingHeroStmt = db.prepare('SELECT * FROM sections WHERE page_id = ? AND type = ?').bind(page.id, 'hero')
+      const existingHero = await existingHeroStmt.first()
+      if (existingHero) {
+        return new Response(JSON.stringify({ error: 'Hero section already exists — only one hero allowed per page, edit existing instead' }), { status: 400, headers })
+      }
+    }
+
     // Get max sort_order for that page — use all() then compute max in JS (avoids MAX mock fragility, free tier <1ms)
     const allSecStmt = db.prepare('SELECT * FROM sections WHERE page_id = ?').bind(page.id)
     const allSecResult = await allSecStmt.all()

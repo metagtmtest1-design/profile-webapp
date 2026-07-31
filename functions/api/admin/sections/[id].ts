@@ -128,6 +128,53 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params
       return new Response(JSON.stringify({ error: `Section not found: ${id}` }), { status: 404, headers: commonHeaders })
     }
 
+    // Get image_url keys from items to delete R2 objects to prevent orphan leak for free tier (H3)
+    let r2KeysToDelete: string[] = []
+    try {
+      const itemsWithImagesStmt = db.prepare('SELECT image_url FROM section_items WHERE section_id = ?').bind(id)
+      const itemsResult = await itemsWithImagesStmt.all()
+      const rows = itemsResult.results || []
+      for (const row of rows as any[]) {
+        const url = row?.image_url as string | null
+        if (!url) continue
+        let key: string | undefined
+        try {
+          let path = url
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            const u = new URL(url)
+            path = u.pathname
+          }
+          path = path.split('?')[0]
+          if (path.includes('/api/images/')) {
+            const idx = path.indexOf('/api/images/')
+            let k = path.slice(idx + '/api/images/'.length)
+            if (k.startsWith('/')) k = k.slice(1)
+            if (k.startsWith('portfolio/')) key = k
+          } else if (path.startsWith('/api/images/')) {
+            key = path.replace('/api/images/', '')
+          } else if (path.startsWith('portfolio/')) {
+            key = path.split('?')[0]
+          }
+        } catch {}
+        if (key && key.startsWith('portfolio/')) r2KeysToDelete.push(key)
+      }
+      console.log(`!!! ADMIN_SECTIONS_DELETE_R2_KEYS id=${id} r2Keys=${r2KeysToDelete.length} list=${r2KeysToDelete.slice(0,5).join(',')}`)
+    } catch (e: any) {
+      console.log(`!!! ADMIN_SECTIONS_DELETE_R2_LIST_ERROR id=${id} error=${e?.message}`)
+    }
+
+    // Delete R2 objects first (best effort, free tier: 1 delete per key, <100/day)
+    if (r2KeysToDelete.length > 0 && env?.R2_BUCKET?.delete) {
+      for (const k of r2KeysToDelete) {
+        try {
+          await env.R2_BUCKET.delete(k)
+          console.log(`!!! ADMIN_SECTIONS_DELETE_R2_DONE key=${k}`)
+        } catch (e: any) {
+          console.log(`!!! ADMIN_SECTIONS_DELETE_R2_ERROR key=${k} error=${e?.message}`)
+        }
+      }
+    }
+
     // Delete its items first to stay free tier clean (no orphans), then section
     const delItemsStmt = db.prepare('DELETE FROM section_items WHERE section_id = ?').bind(id)
     await delItemsStmt.run()

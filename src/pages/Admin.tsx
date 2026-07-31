@@ -90,7 +90,7 @@ export function Admin() {
   return (
     <div className="bg-slate-50 min-h-screen">
       <div className="sticky top-0 z-40 backdrop-blur bg-white/80 border-b">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex justify-between items-center gap-3">
+        <div className="max-w-5xl mx-auto px-6 py-3 flex justify-between items-center gap-3">
           <div className="flex items-center gap-2 text-xs">
             <h1 className="text-sm font-black tracking-tight">Admin</h1>
             <span className="w-1 h-1 bg-gray-300 rounded-full" aria-hidden />
@@ -106,10 +106,10 @@ export function Admin() {
             <a href="/" className="px-3 py-1.5 bg-slate-900 text-white rounded-full text-[11px] font-semibold" aria-label="View site">View site</a>
           </div>
         </div>
-        {globalError && <div className="max-w-6xl mx-auto px-6 pb-2"><div className="p-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700" role="alert">{globalError}</div></div>}
-        {content.error && <div className="max-w-6xl mx-auto px-6 pb-2"><div className="p-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">Content error: {content.error}</div></div>}
+        {globalError && <div className="max-w-5xl mx-auto px-6 pb-2"><div className="p-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700" role="alert">{globalError}</div></div>}
+        {content.error && <div className="max-w-5xl mx-auto px-6 pb-2"><div className="p-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">Content error: {content.error}</div></div>}
         {quota && (
-          <div className="max-w-6xl mx-auto px-6 pb-3">
+          <div className="max-w-5xl mx-auto px-6 pb-3">
             <div className="p-2.5 bg-white rounded-xl border text-[11px] flex flex-wrap gap-3 items-center">
               <span>Objects: {quota.totalObjects}</span>
               <span>{quota.totalMB}MB / {quota.limitMB}MB</span>
@@ -126,7 +126,7 @@ export function Admin() {
       {content.loading ? (
         <div className="max-w-5xl mx-auto px-6 py-24 text-center text-sm text-gray-500">Loading portfolio content…</div>
       ) : (
-        <div className="max-w-6xl mx-auto px-6 py-8 space-y-10">
+        <div className="max-w-5xl mx-auto px-6 py-8 space-y-10">
           {/* Add / Remove section — per your request */}
           <div className="p-4 border rounded-2xl bg-white shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Add / Remove Section — keeps hero, about, calendar simple, 100 images scenario</h3>
@@ -150,9 +150,9 @@ export function Admin() {
             const items = [...(section.items || [])].sort((a, b) => a.sort_order - b.sort_order)
             return (
               <div key={section.id} className={`relative group rounded-2xl border bg-white shadow-sm overflow-hidden ${isHidden ? 'opacity-60 border-dashed border-amber-300' : 'border-slate-200'}`}>
-                <div className="absolute top-3 right-3 sm:right-4 z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="px-2 py-1 rounded-full bg-slate-900 text-white text-[10px] uppercase tracking-wide shadow-sm">{section.type} #{section.sort_order}</span>
-                  {isHidden && <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-800 border text-[10px]">Hidden</span>}
+                <div className="absolute top-4 right-4 sm:right-6 z-20 flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
+                  <span className="px-3 py-1.5 rounded-full bg-slate-900 text-white text-[10px] uppercase tracking-wide shadow-sm border border-slate-800">{section.type} #{section.sort_order}</span>
+                  {isHidden && <span className="px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-[10px] shadow-sm">Hidden — not on live</span>}
                   <button aria-label="Move section up" disabled={secIdx === 0} onClick={async () => {
                     try {
                       const sorted = [...content.sections].sort((a, b) => a.sort_order - b.sort_order)
