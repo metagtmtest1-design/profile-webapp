@@ -165,12 +165,7 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
 
       {error && <div className="text-[11px] text-red-700 bg-red-50 p-2 rounded-lg border border-red-200" role="alert">{error}</div>}
 
-      <details className="text-[10px] text-gray-400">
-        <summary className="cursor-pointer hover:text-gray-600">Free tier info — why PNG→WebP + replace</summary>
-        <div className="mt-1 p-2 bg-slate-50 rounded-lg border text-[11px] leading-relaxed">
-          Client resize PNG if ≤1MB (lossless) else WebP within 1MB, max 1200px — 0 Worker CPU. Server validates ≤1MB. oldKey delete-before-put stays under 10GB for 100 images (40MB per env, 80-100MB combined &lt;1% of 10GB). Env isolation alpha bucket portfolio-images-alpha + prod portfolio-images share account quota safe. Browser→Worker 100MB Free limit, Worker→R2 5 GiB single PUT, app 1MB well below, no nginx config.
-        </div>
-      </details>
+
     </div>
   )
 }

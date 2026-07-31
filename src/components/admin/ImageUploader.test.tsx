@@ -59,7 +59,7 @@ describe('ImageUploader — PNG if ≤1MB else WebP within 1MB', () => {
   it('renders file input', () => {
     render(<ImageUploader onUploadComplete={vi.fn()} />)
     expect(screen.getByText(/Select image to upload/i)).toBeInTheDocument()
-    expect(screen.getByText(/Free tier info/i)).toBeInTheDocument()
+    // Free tier info removed per user request #2 — no longer displays PNG→WebP + replace details
   })
 
   it('rejects non-image file type', async () => {
@@ -146,8 +146,10 @@ describe('ImageUploader — PNG if ≤1MB else WebP within 1MB', () => {
     await waitFor(() => expect(screen.getByText(/File too large/i)).toBeInTheDocument())
   })
 
-  it('shows 100 images free tier note: 40MB per env, 80MB combined <1% of 10GB', async () => {
+  it('shows button for select image upload (no duplicate)', async () => {
     render(<ImageUploader onUploadComplete={vi.fn()} />)
-    expect(screen.getByText(/100 images.*40MB per env.*80-100MB.*<1% of 10GB/i)).toBeInTheDocument()
+    // Should have button Select image, not duplicate large + thumb
+    expect(screen.getAllByText(/Select image/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Drop or click to replace|Select image to upload|Replace image/i)).toBeInTheDocument()
   })
 })

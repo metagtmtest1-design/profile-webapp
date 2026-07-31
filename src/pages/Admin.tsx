@@ -117,7 +117,7 @@ export function Admin() {
                 <div className="h-full bg-slate-900" style={{ width: `${Math.min(100, quota.percent)}%` }} />
               </div>
               <span className={quota.warning ? 'text-red-600 font-semibold' : 'text-green-700'}>{quota.warning ? '⚠️ >90%' : 'Safe <1% for 100 images'}</span>
-              <span className="text-gray-500 hidden md:inline">PNG if ≤1MB else WebP, oldKey delete-before-put</span>
+
             </div>
           </div>
         )}
@@ -132,12 +132,12 @@ export function Admin() {
             <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Add / Remove Section — keeps hero, about, calendar simple, 100 images scenario</h3>
             <div className="flex flex-wrap gap-2 items-center">
               <select value={newSectionType} onChange={(e) => setNewSectionType(e.target.value)} className="px-3 py-2 border rounded-xl text-xs bg-white">
-                <option value="hero">hero</option>
-                <option value="text-block">text-block (About Me)</option>
-                <option value="cards-grid">cards-grid (Services)</option>
-                <option value="testimonials">testimonials</option>
-                <option value="cta-banner">cta-banner</option>
-                <option value="image-gallery">image-gallery</option>
+                <option value="hero">Hero — Top landing section with headline</option>
+                <option value="text-block">About Me — Text block with story</option>
+                <option value="cards-grid">Services — Branding & more cards grid</option>
+                <option value="testimonials">Testimonials — Client quotes with author</option>
+                <option value="cta-banner">CTA Banner — Call to action with button</option>
+                <option value="image-gallery">Image Gallery — Portfolio work grid</option>
               </select>
               <input type="text" value={newSectionHeading} onChange={(e) => setNewSectionHeading(e.target.value)} placeholder="New section heading — current" className="px-3 py-2 border rounded-xl text-xs min-w-[200px]" aria-label="New section heading" />
               <button onClick={handleAddSection} className="px-4 py-2 bg-slate-900 text-white rounded-full text-xs font-semibold hover:bg-black" aria-label="Add section">Add section</button>
