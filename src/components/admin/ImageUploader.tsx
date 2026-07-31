@@ -138,16 +138,8 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            inputRef.current?.click()
-          }
-        }}
-        tabIndex={0}
         className={`group border-2 border-dashed rounded-xl p-3 flex gap-3 items-center cursor-pointer transition-colors ${dragOver ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-900 hover:bg-slate-50'} ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
-        role="button"
-        aria-label="Upload image — PNG if ≤1MB else WebP within 1MB, max 1200px — drop or click to replace"
+        aria-label="Upload image dropzone — PNG if ≤1MB else WebP within 1MB, max 1200px"
       >
         <input ref={inputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={uploading} className="hidden" aria-hidden />
         {displayUrl ? (
@@ -166,7 +158,7 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
           {currentImageUrl && <div className="text-[10px] text-gray-400 truncate mt-0.5" title={currentImageUrl}>Current image: {currentImageUrl.split('/').pop()?.slice(0,30)}</div>}
           {!currentImageUrl && <div className="text-[10px] text-gray-400">100 images ×400KB avg=40MB/env, 80MB combined &lt;1% of 10GB</div>}
         </div>
-        <button type="button" className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-full text-[11px] font-semibold hover:bg-black shrink-0" aria-label={currentImageUrl ? 'Replace image button' : 'Select image button'}>
+        <button type="button" onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }} className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-full text-[11px] font-semibold hover:bg-black shrink-0 min-h-8 min-w-8" aria-label={currentImageUrl ? 'Replace image button' : 'Select image button'}>
           {currentImageUrl ? 'Select new' : 'Select image'}
         </button>
       </div>

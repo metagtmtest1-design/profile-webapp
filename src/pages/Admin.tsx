@@ -150,7 +150,7 @@ export function Admin() {
             const items = [...(section.items || [])].sort((a, b) => a.sort_order - b.sort_order)
             return (
               <div key={section.id} className={`relative group rounded-2xl border bg-white shadow-sm overflow-hidden ${isHidden ? 'opacity-60 border-dashed border-amber-300' : 'border-slate-200'}`}>
-                <div className="absolute top-4 right-4 sm:right-6 z-20 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-4 right-4 sm:right-6 z-20 flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
                   <span className="px-3 py-1.5 rounded-full bg-slate-900 text-white text-[10px] uppercase tracking-wide shadow-sm border border-slate-800">{section.type} #{section.sort_order}</span>
                   {isHidden && <span className="px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-[10px] shadow-sm">Hidden — not on live</span>}
                   <button aria-label="Move section up" disabled={secIdx === 0} onClick={async () => {
