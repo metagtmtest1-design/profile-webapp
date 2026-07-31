@@ -169,7 +169,6 @@ export function Admin() {
                           <div className="w-12 h-12 rounded-xl bg-slate-50 border flex items-center justify-center mb-3 text-xl"><EditableText value={item.icon || '◈'} onSave={async (v) => content.updateItem(item.id, { icon: v } as any)} placeholder="Icon" /></div>
                           <div className="font-bold"><EditableText value={item.title || ''} onSave={async (v) => content.updateItem(item.id, { title: v } as any)} placeholder="Title — current" displayClassName="font-bold" inputClassName="font-bold" /></div>
                           <div className="text-sm text-gray-600 mt-1"><EditableText value={item.body || ''} onSave={async (v) => content.updateItem(item.id, { body: v } as any)} placeholder="Body — current" multiline /></div>
-                          {item.image_url && <img src={item.image_url} alt="current" className="w-full h-24 object-cover rounded-lg border mt-2" loading="lazy" />}
                           <div className="mt-2"><ImageUploader currentImageUrl={item.image_url} oldKey={getOldKeyFromUrl(item.image_url)} onUploadComplete={async (r) => await content.updateItem(item.id, { image_url: r.url } as any)} /></div>
                         </div>
                       ))}
@@ -184,7 +183,6 @@ export function Admin() {
                       <div key={item.id} className="mt-4 space-y-2">
                         <div className="font-semibold"><EditableText value={item.title || ''} onSave={async (v) => content.updateItem(item.id, { title: v } as any)} placeholder="Title — current" /></div>
                         <div className="text-gray-600"><EditableText value={item.body || ''} onSave={async (v) => content.updateItem(item.id, { body: v } as any)} placeholder="Body — current" multiline displayClassName="text-gray-600 leading-relaxed" /></div>
-                        {item.image_url && <img src={item.image_url} alt="current" className="w-20 h-20 object-cover rounded-xl border" loading="lazy" />}
                         <ImageUploader currentImageUrl={item.image_url} oldKey={getOldKeyFromUrl(item.image_url)} onUploadComplete={async (r) => await content.updateItem(item.id, { image_url: r.url } as any)} />
                       </div>
                     ))}
@@ -221,7 +219,6 @@ export function Admin() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                       {items.map((item) => (
                         <div key={item.id} className="space-y-2">
-                          {item.image_url ? <img src={item.image_url} alt={item.title || 'current'} className="w-full h-32 object-cover rounded-xl border" loading="lazy" /> : <div className="h-32 bg-slate-50 border rounded-xl flex items-center justify-center text-xs text-gray-400">No image</div>}
                           <ImageUploader currentImageUrl={item.image_url} oldKey={getOldKeyFromUrl(item.image_url)} onUploadComplete={async (r) => await content.updateItem(item.id, { image_url: r.url } as any)} />
                           <EditableText value={item.title || ''} onSave={(v) => content.updateItem(item.id, { title: v } as any)} placeholder="Image title — current" />
                         </div>

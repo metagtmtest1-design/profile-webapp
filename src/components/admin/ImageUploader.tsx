@@ -157,14 +157,18 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
         )}
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold flex items-center gap-2">
-            {uploading ? 'Resizing + uploading…' : 'Drop or click to replace'}
+            {uploading ? 'Resizing + uploading…' : currentImageUrl ? 'Replace image' : 'Select image to upload'}
             {uploading && <span className="w-3 h-3 border-2 border-gray-300 border-t-slate-900 rounded-full animate-spin" />}
           </div>
           <div className="text-[11px] text-gray-500 mt-0.5">
-            {sizeBadge || 'PNG if ≤1MB (lossless) else WebP within 1MB — max 1200px — 1MB max — 100 images 40MB/env'}
+            {sizeBadge || 'PNG if ≤1MB else WebP within 1MB — max 1200px — 1MB max'}
           </div>
-          {currentImageUrl && <div className="text-[10px] text-gray-400 truncate mt-0.5" title={currentImageUrl}>Current: {currentImageUrl.split('/').pop()}</div>}
+          {currentImageUrl && <div className="text-[10px] text-gray-400 truncate mt-0.5" title={currentImageUrl}>Current image: {currentImageUrl.split('/').pop()?.slice(0,30)}</div>}
+          {!currentImageUrl && <div className="text-[10px] text-gray-400">100 images ×400KB avg=40MB/env, 80MB combined &lt;1% of 10GB</div>}
         </div>
+        <button type="button" className="ml-2 px-3 py-1.5 bg-slate-900 text-white rounded-full text-[11px] font-semibold hover:bg-black shrink-0" aria-label={currentImageUrl ? 'Replace image button' : 'Select image button'}>
+          {currentImageUrl ? 'Select new' : 'Select image'}
+        </button>
       </div>
 
       {error && <div className="text-[11px] text-red-700 bg-red-50 p-2 rounded-lg border border-red-200" role="alert">{error}</div>}

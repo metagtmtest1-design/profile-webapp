@@ -60,7 +60,7 @@ describe('Admin page — inline edit identical to landing', () => {
     // Check for hero section type badge
     expect(screen.getAllByText(/hero/i).length).toBeGreaterThan(0)
     // Image uploader compact
-    expect(screen.getAllByText(/Drop or click to replace/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Select image to upload|Replace image|Drop or click to replace/i).length).toBeGreaterThan(0)
   })
 
   it('edit card not complicated — well aligned, no separate big Edit hero card', () => {
