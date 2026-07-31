@@ -32,6 +32,8 @@ export interface UseAdminContentReturn {
   error: string | null
   updateSection: (id: string, patch: Partial<AdminSection>) => Promise<void>
   updateItem: (id: string, patch: Partial<AdminItem>) => Promise<void>
+  createSection: (type: string, heading: string) => Promise<void>
+  deleteSection: (id: string) => Promise<void>
   reorderSections: (orderedIds: string[]) => Promise<void>
   reorderItems: (sectionId: string, orderedIds: string[]) => Promise<void>
   refetch: () => Promise<void>
@@ -119,12 +121,32 @@ export function useAdminContent(): UseAdminContentReturn {
     )
   }
 
+  const createSection = async (type: string, heading: string) => {
+    if (import.meta.env.DEV) console.log(`!!! USE_ADMIN_CONTENT_CREATE_SECTION type=${type} heading=${heading}`)
+    const { json } = await fetchJson('/api/admin/sections', {
+      method: 'POST',
+      body: JSON.stringify({ type, heading }),
+    } as any)
+    const created = json as AdminSection
+    // Ensure items array exists for new section
+    const withItems = { ...created, items: (created as any).items || [] } as AdminSection
+    setSections((prev) => [...prev, withItems].sort((a, b) => a.sort_order - b.sort_order))
+  }
+
+  const deleteSection = async (id: string) => {
+    if (import.meta.env.DEV) console.log(`!!! USE_ADMIN_CONTENT_DELETE_SECTION id=${id}`)
+    await fetchJson(`/api/admin/sections/${id}`, { method: 'DELETE' } as any)
+    setSections((prev) => prev.filter((s) => s.id !== id))
+  }
+
   return {
     sections,
     loading,
     error,
     updateSection,
     updateItem,
+    createSection,
+    deleteSection,
     reorderSections,
     reorderItems,
     refetch: fetchContent,
