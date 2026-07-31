@@ -13,10 +13,10 @@ describe('EditableText — inline edit for admin', () => {
     expect(screen.getByText('Click to edit')).toBeInTheDocument()
   })
 
-  it('double-click enters edit mode with input', async () => {
+  it('click enters edit mode with input (double-click removed per UIUX feedback to avoid double trigger)', async () => {
     render(<EditableText value="Hello" onSave={vi.fn()} />)
     const display = screen.getByText('Hello')
-    fireEvent.doubleClick(display)
+    fireEvent.click(display)
     expect(await screen.findByDisplayValue('Hello')).toBeInTheDocument()
   })
 
