@@ -6,6 +6,7 @@ import { Admin } from './pages/Admin'
 
 function App() {
   const path = typeof window !== 'undefined' ? window.location.pathname : '/'
+  console.log('!!! APP_ROUTING path=' + path)
 
   // Simple routing — no react-router needed for MVP
   if (path.startsWith('/health')) {

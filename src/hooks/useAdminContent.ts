@@ -43,14 +43,17 @@ export function useAdminContent(): UseAdminContentReturn {
   const [error, setError] = useState<string | null>(null)
 
   const fetchContent = useCallback(async () => {
+    console.log('!!! USE_ADMIN_CONTENT_FETCH_START url=/api/admin/content')
     setLoading(true)
     setError(null)
     try {
       const { json } = await fetchJson('/api/admin/content', { cache: 'no-store' } as any)
       const data = json as any
+      console.log('!!! USE_ADMIN_CONTENT_FETCHED raw=' + JSON.stringify(data)?.slice(0,500))
       setSections(data.sections || [])
       console.log(`!!! USE_ADMIN_CONTENT_FETCHED sections=${data.sections?.length}`)
     } catch (e: any) {
+      console.log('!!! USE_ADMIN_CONTENT_ERROR error=' + e?.message + ' stack=' + e?.stack?.slice(0,500))
       setError(e?.message || String(e))
       console.log(`!!! USE_ADMIN_CONTENT_ERROR ${e?.message}`)
     } finally {
