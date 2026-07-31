@@ -188,7 +188,6 @@ export function Admin() {
                     {items[0] && (
                       <div className="space-y-3 max-w-[60ch]">
                         <div className="text-gray-600"><EditableText value={items[0].body || ''} onSave={async (v) => { try { await content.updateItem(items[0].id, { body: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Body — current" multiline /></div>
-                        {items[0].image_url && <img src={items[0].image_url} alt="current hero" className="w-full rounded-2xl shadow-lg object-cover aspect-[4/3] mt-3" loading="lazy" />}
                         <ImageUploader currentImageUrl={items[0].image_url} oldKey={getOldKeyFromUrl(items[0].image_url)} onUploadComplete={async (r) => { try { await content.updateItem(items[0].id, { image_url: r.url } as any) } catch (e: any) { setGlobalError(e?.message) } }} />
                       </div>
                     )}
