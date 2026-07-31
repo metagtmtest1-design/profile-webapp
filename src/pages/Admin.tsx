@@ -6,7 +6,9 @@ import { ImageUploader } from '../components/admin/ImageUploader'
 import { fetchR2Usage } from '../lib/api'
 
 export function Admin() {
+  console.log('!!! ADMIN_PAGE_RENDER_START windowPath=' + (typeof window !== 'undefined' ? window.location.pathname : 'no-window'))
   const { data, loading, error, isAuthed, isBypass, email, refetch } = useAdminAuth()
+  console.log('!!! ADMIN_AUTH_STATE loading=' + loading + ' isAuthed=' + isAuthed + ' email=' + email + ' bypass=' + isBypass + ' error=' + error + ' data=' + JSON.stringify(data)?.slice(0,200))
 
   if (loading) {
     return (
@@ -86,6 +88,7 @@ export function Admin() {
   }
 
   const content = useAdminContent()
+  console.log('!!! ADMIN_CONTENT_HOOK sections=' + content.sections.length + ' loading=' + content.loading + ' error=' + content.error)
   const [quota, setQuota] = useState<any>(null)
   const [quotaLoading, setQuotaLoading] = useState(false)
 
