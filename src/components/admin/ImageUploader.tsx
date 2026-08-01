@@ -142,7 +142,12 @@ export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onErr
       >
         <input ref={inputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={uploading} className="hidden" aria-hidden />
         {displayUrl ? (
-          <img src={displayUrl} alt="current" className="w-20 h-20 object-cover rounded-lg border shrink-0" loading="lazy" />
+          <div className="relative group/img shrink-0">
+            <img src={displayUrl} alt="current" onClick={() => inputRef.current?.click()} className="w-20 h-20 object-cover rounded-lg border cursor-pointer hover:opacity-80 transition-opacity" loading="lazy" />
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none">
+              <span className="px-2 py-1 rounded-full bg-black/60 text-white text-[10px]">📤 Replace</span>
+            </div>
+          </div>
         ) : (
           <div className="w-20 h-20 rounded-lg border border-dashed bg-slate-50 flex items-center justify-center text-[11px] text-gray-400 shrink-0">No image</div>
         )}
