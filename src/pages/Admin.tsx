@@ -139,7 +139,7 @@ export function Admin() {
                 <option value="cta-banner">CTA Banner — Call to action with button</option>
                 <option value="image-gallery">Image Gallery — Portfolio work grid</option>
               </select>
-              <input type="text" value={newSectionHeading} onChange={(e) => setNewSectionHeading(e.target.value)} placeholder="New section heading — current" className="px-3 py-2 border rounded-xl text-xs min-w-[200px]" aria-label="New section heading" />
+              <input type="text" value={newSectionHeading} onChange={(e) => setNewSectionHeading(e.target.value)} placeholder="New section heading" className="px-3 py-2 border rounded-xl text-xs min-w-[200px]" aria-label="New section heading" />
               <button onClick={handleAddSection} className="px-4 py-2 bg-slate-900 text-white rounded-full text-xs font-semibold hover:bg-black" aria-label="Add section">Add section</button>
               <span className="text-[11px] text-gray-500">Now: {sortedSections.length} sections — hero + about visible</span>
             </div>
@@ -183,22 +183,21 @@ export function Admin() {
                       <div className="flex flex-col lg:flex-row gap-10 items-center">
                         <div className="flex-1 w-full">
                           <h1 className="text-4xl lg:text-5xl font-black leading-tight tracking-tight mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
-                            <EditableText value={section.heading || ''} onSave={async (v) => { try { await content.updateSection(section.id, { heading: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Hero heading — current" required ariaLabel="Hero heading" displayClassName="text-4xl lg:text-5xl font-black" inputClassName="text-4xl lg:text-5xl font-black" />
+                            <EditableText value={section.heading || ''} onSave={async (v) => { try { await content.updateSection(section.id, { heading: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Hero heading" required ariaLabel="Hero heading" displayClassName="text-4xl lg:text-5xl font-black" inputClassName="text-4xl lg:text-5xl font-black" />
                           </h1>
                           <div className="text-xl text-gray-600 mb-4 max-w-[60ch]">
-                            <EditableText value={section.subheading || ''} onSave={async (v) => { try { await content.updateSection(section.id, { subheading: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Subheading — current" multiline ariaLabel="Hero subheading" displayClassName="text-xl text-gray-600" inputClassName="text-xl text-gray-600" />
+                            <EditableText value={section.subheading || ''} onSave={async (v) => { try { await content.updateSection(section.id, { subheading: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Subheading" multiline ariaLabel="Hero subheading" displayClassName="text-xl text-gray-600" inputClassName="text-xl text-gray-600" />
                           </div>
                           {items[0] && (
                             <div className="space-y-3 max-w-[60ch]">
-                              <div className="text-gray-600"><EditableText value={items[0].body || ''} onSave={async (v) => { try { await content.updateItem(items[0].id, { body: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Body — current" multiline /></div>
+                              <div className="text-gray-600"><EditableText value={items[0].body || ''} onSave={async (v) => { try { await content.updateItem(items[0].id, { body: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Body" multiline /></div>
                             </div>
                           )}
                         </div>
                         <div className="flex-1 w-full">
                           {items[0] && (
                             <div className="space-y-2">
-                              <div className="text-[11px] font-semibold text-gray-500">Hero image — current — click image to replace — resized 1200px max, PNG if ≤1MB else WebP</div>
-                              <div className="relative group">
+                                                            <div className="relative group">
                                 {items[0].image_url ? (
                                   <img src={items[0].image_url} alt="current hero — click to replace, upload icon" className="w-full rounded-2xl shadow-lg object-cover aspect-[4/3] cursor-pointer hover:opacity-90 transition-opacity" loading="lazy" role="button" tabIndex={0} onClick={() => document.getElementById(`upload-${items[0].id}`)?.click()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(`upload-${items[0].id}`)?.click() } }} />
                                 ) : (
@@ -220,15 +219,15 @@ export function Admin() {
                 {section.type === 'cards-grid' && (
                   <div className="py-16 px-6 sm:px-8">
                     <div className="text-center mb-8">
-                      <h2 className="text-3xl font-black tracking-tight mb-2"><EditableText value={section.heading || ''} onSave={async (v) => content.updateSection(section.id, { heading: v } as any)} placeholder="Services heading — current" displayClassName="text-3xl font-black" inputClassName="text-3xl font-black" /></h2>
-                      <div className="text-gray-600"><EditableText value={section.subheading || ''} onSave={async (v) => content.updateSection(section.id, { subheading: v } as any)} placeholder="Subheading — current" /></div>
+                      <h2 className="text-3xl font-black tracking-tight mb-2"><EditableText value={section.heading || ''} onSave={async (v) => content.updateSection(section.id, { heading: v } as any)} placeholder="Services heading" displayClassName="text-3xl font-black" inputClassName="text-3xl font-black" /></h2>
+                      <div className="text-gray-600"><EditableText value={section.subheading || ''} onSave={async (v) => content.updateSection(section.id, { subheading: v } as any)} placeholder="Subheading" /></div>
                     </div>
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
                       {items.map((item) => (
                         <div key={item.id} className="card p-5 group/item">
                           <div className="w-12 h-12 rounded-xl bg-slate-50 border flex items-center justify-center mb-3 text-xl"><EditableText value={item.icon || '◈'} onSave={async (v) => content.updateItem(item.id, { icon: v } as any)} placeholder="Icon" /></div>
-                          <div className="font-bold"><EditableText value={item.title || ''} onSave={async (v) => content.updateItem(item.id, { title: v } as any)} placeholder="Title — current" displayClassName="font-bold" inputClassName="font-bold" /></div>
-                          <div className="text-sm text-gray-600 mt-1"><EditableText value={item.body || ''} onSave={async (v) => content.updateItem(item.id, { body: v } as any)} placeholder="Body — current" multiline /></div>
+                          <div className="font-bold"><EditableText value={item.title || ''} onSave={async (v) => content.updateItem(item.id, { title: v } as any)} placeholder="Title" displayClassName="font-bold" inputClassName="font-bold" /></div>
+                          <div className="text-sm text-gray-600 mt-1"><EditableText value={item.body || ''} onSave={async (v) => content.updateItem(item.id, { body: v } as any)} placeholder="Body" multiline /></div>
                           <div className="mt-2"><ImageUploader currentImageUrl={item.image_url} oldKey={getOldKeyFromUrl(item.image_url)} onUploadComplete={async (r) => await content.updateItem(item.id, { image_url: r.url } as any)} /></div>
                         </div>
                       ))}
@@ -238,11 +237,11 @@ export function Admin() {
 
                 {section.type === 'text-block' && (
                   <div className="py-16 px-6 sm:px-8">
-                    <h2 className="text-3xl font-black mb-4"><EditableText value={section.heading || ''} onSave={async (v) => content.updateSection(section.id, { heading: v } as any)} placeholder="About heading — current" displayClassName="text-3xl font-black" inputClassName="text-3xl font-black" /></h2>
+                    <h2 className="text-3xl font-black mb-4"><EditableText value={section.heading || ''} onSave={async (v) => content.updateSection(section.id, { heading: v } as any)} placeholder="About heading" displayClassName="text-3xl font-black" inputClassName="text-3xl font-black" /></h2>
                     {items.map((item) => (
                       <div key={item.id} className="mt-4 space-y-2">
-                        <div className="font-semibold"><EditableText value={item.title || ''} onSave={async (v) => content.updateItem(item.id, { title: v } as any)} placeholder="Title — current" /></div>
-                        <div className="text-gray-600"><EditableText value={item.body || ''} onSave={async (v) => content.updateItem(item.id, { body: v } as any)} placeholder="Body — current" multiline displayClassName="text-gray-600 leading-relaxed" /></div>
+                        <div className="font-semibold"><EditableText value={item.title || ''} onSave={async (v) => content.updateItem(item.id, { title: v } as any)} placeholder="Title" /></div>
+                        <div className="text-gray-600"><EditableText value={item.body || ''} onSave={async (v) => content.updateItem(item.id, { body: v } as any)} placeholder="Body" multiline displayClassName="text-gray-600 leading-relaxed" /></div>
                         <ImageUploader currentImageUrl={item.image_url} oldKey={getOldKeyFromUrl(item.image_url)} onUploadComplete={async (r) => await content.updateItem(item.id, { image_url: r.url } as any)} />
                       </div>
                     ))}
@@ -251,13 +250,13 @@ export function Admin() {
 
                 {section.type === 'testimonials' && (
                   <div className="py-16 px-6 sm:px-8">
-                    <h2 className="text-3xl font-black mb-6 text-center"><EditableText value={section.heading || ''} onSave={(v) => content.updateSection(section.id, { heading: v } as any)} placeholder="Testimonials heading — current" displayClassName="text-3xl font-black" /></h2>
+                    <h2 className="text-3xl font-black mb-6 text-center"><EditableText value={section.heading || ''} onSave={(v) => content.updateSection(section.id, { heading: v } as any)} placeholder="Testimonials heading" displayClassName="text-3xl font-black" /></h2>
                     <div className="grid md:grid-cols-2 gap-4">
                       {items.map((item) => (
                         <div key={item.id} className="p-5 border rounded-2xl bg-slate-50">
                           <div className="text-amber-400 mb-2">★★★★★</div>
-                          <div className="text-sm"><EditableText value={item.body || ''} onSave={(v) => content.updateItem(item.id, { body: v } as any)} placeholder="Testimonial body — current" multiline /></div>
-                          <div className="mt-3 text-sm font-semibold"><EditableText value={item.author || ''} onSave={(v) => content.updateItem(item.id, { author: v } as any)} placeholder="Author — current" /></div>
+                          <div className="text-sm"><EditableText value={item.body || ''} onSave={(v) => content.updateItem(item.id, { body: v } as any)} placeholder="Testimonial body" multiline /></div>
+                          <div className="mt-3 text-sm font-semibold"><EditableText value={item.author || ''} onSave={(v) => content.updateItem(item.id, { author: v } as any)} placeholder="Author" /></div>
                         </div>
                       ))}
                     </div>
@@ -267,20 +266,20 @@ export function Admin() {
                 {section.type === 'cta-banner' && (
                   <div className="p-2">
                     <div className="bg-slate-900 text-white rounded-2xl p-8 text-center">
-                      <h2 className="text-3xl font-black mb-3"><EditableText value={section.heading || ''} onSave={(v) => content.updateSection(section.id, { heading: v } as any)} placeholder="CTA heading — current" displayClassName="text-white text-3xl font-black" inputClassName="text-white text-3xl font-black bg-transparent" /></h2>
-                      <div className="text-gray-300 mb-4"><EditableText value={section.subheading || ''} onSave={(v) => content.updateSection(section.id, { subheading: v } as any)} placeholder="Subheading — current" multiline /></div>
+                      <h2 className="text-3xl font-black mb-3"><EditableText value={section.heading || ''} onSave={(v) => content.updateSection(section.id, { heading: v } as any)} placeholder="CTA heading" displayClassName="text-white text-3xl font-black" inputClassName="text-white text-3xl font-black bg-transparent" /></h2>
+                      <div className="text-gray-300 mb-4"><EditableText value={section.subheading || ''} onSave={(v) => content.updateSection(section.id, { subheading: v } as any)} placeholder="Subheading" multiline /></div>
                     </div>
                   </div>
                 )}
 
                 {section.type === 'image-gallery' && (
                   <div className="py-16 px-6 sm:px-8">
-                    <h2 className="text-3xl font-black mb-6"><EditableText value={section.heading || ''} onSave={(v) => content.updateSection(section.id, { heading: v } as any)} placeholder="Gallery heading — current" /></h2>
+                    <h2 className="text-3xl font-black mb-6"><EditableText value={section.heading || ''} onSave={(v) => content.updateSection(section.id, { heading: v } as any)} placeholder="Gallery heading" /></h2>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                       {items.map((item) => (
                         <div key={item.id} className="space-y-2">
                           <ImageUploader currentImageUrl={item.image_url} oldKey={getOldKeyFromUrl(item.image_url)} onUploadComplete={async (r) => await content.updateItem(item.id, { image_url: r.url } as any)} />
-                          <EditableText value={item.title || ''} onSave={(v) => content.updateItem(item.id, { title: v } as any)} placeholder="Image title — current" />
+                          <EditableText value={item.title || ''} onSave={(v) => content.updateItem(item.id, { title: v } as any)} placeholder="Image title" />
                         </div>
                       ))}
                     </div>
