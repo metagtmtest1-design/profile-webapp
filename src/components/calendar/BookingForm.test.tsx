@@ -97,7 +97,7 @@ describe('BookingForm — first_name, last_name, email, phone, purpose + Turnsti
     fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Doe' } })
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'jane@example.com' } })
 
-    fireEvent.click(screen.getByRole('button', { name: /book meeting/i }))
+    fireEvent.click(screen.getByRole('button', { name: /book this time/i }))
 
     await waitFor(() => {
       expect(screen.getByText(/Meeting Confirmed/i)).toBeInTheDocument()
@@ -119,7 +119,7 @@ describe('BookingForm — first_name, last_name, email, phone, purpose + Turnsti
     fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Doe' } })
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'jane@example.com' } })
 
-    fireEvent.click(screen.getByRole('button', { name: /book meeting/i }))
+    fireEvent.click(screen.getByRole('button', { name: /book this time/i }))
 
     await waitFor(() => screen.getByText(/Meeting Confirmed/i))
     const cancelBtn = screen.getByRole('link', { name: /Cancel meeting/i })
@@ -143,7 +143,7 @@ describe('BookingForm — first_name, last_name, email, phone, purpose + Turnsti
     fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Doe' } })
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'jane@example.com' } })
 
-    fireEvent.click(screen.getByRole('button', { name: /book meeting/i }))
+    fireEvent.click(screen.getByRole('button', { name: /book this time/i }))
 
     await waitFor(() => screen.getByText(/Meeting Confirmed/i))
     const buttons = screen.getAllByRole('button')

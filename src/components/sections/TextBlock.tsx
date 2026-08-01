@@ -1,12 +1,15 @@
 import React from 'react'
 import type { Section, SectionItem } from '../../lib/api'
+import { SafeImage } from '../common/SafeImage'
 
 export interface TextBlockProps {
   section: Section
   items: SectionItem[]
+  /** In-page anchors that exist on this render. Undefined means "not told" — show everything. */
+  anchors?: Set<string>
 }
 
-export function TextBlock({ section, items }: TextBlockProps) {
+export function TextBlock({ section, items, anchors }: TextBlockProps) {
   const first = items[0]
   return (
     <section className="py-20 lg:py-24 bg-slate-50" id="about">
@@ -14,14 +17,10 @@ export function TextBlock({ section, items }: TextBlockProps) {
         <div className="flex-1 w-full">
           <div className="relative">
             {first?.image_url ? (
-              <img src={first.image_url} alt={first.title || 'About portrait'} className="w-full rounded-2xl object-cover shadow-md aspect-[4/3] h-auto" loading="lazy" decoding="async" />
+              <SafeImage src={first.image_url} alt={first.title || 'About portrait'} className="w-full rounded-2xl object-cover shadow-md aspect-[4/3] h-auto" loading="lazy" decoding="async" />
             ) : (
               <div className="w-full aspect-[4/3] bg-white border rounded-2xl flex items-center justify-center text-gray-400">Portrait</div>
             )}
-            <div className="absolute -bottom-4 -right-4 bg-white border border-slate-200 rounded-xl p-3 shadow-sm hidden sm:block">
-              <div className="text-xs font-semibold tracking-widest uppercase text-gray-500">Based in Boston</div>
-              <div className="text-sm font-bold">Working globally, remote-first</div>
-            </div>
           </div>
         </div>
         <div className="flex-1 w-full max-w-[65ch]">
@@ -36,8 +35,7 @@ export function TextBlock({ section, items }: TextBlockProps) {
             </div>
           )}
           <div className="mt-8 flex gap-3">
-            <a href="#testimonials" className="btn-secondary text-sm">Client stories</a>
-            <a href="#calendar" className="btn-primary text-sm">Book intro</a>
+            <a href="#calendar" className="btn-primary text-sm">Book a free call</a>
           </div>
         </div>
       </div>

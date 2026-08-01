@@ -158,3 +158,6 @@ dist/
 
 # Test
 coverage/
+
+# Local UI verification screenshots
+tmp-e2e/

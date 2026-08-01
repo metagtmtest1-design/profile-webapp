@@ -1,5 +1,6 @@
 import React from 'react'
 import type { Section, SectionItem } from '../../lib/api'
+import { SafeImage } from '../common/SafeImage'
 
 export interface ImageGalleryProps {
   section: Section
@@ -19,7 +20,7 @@ export function ImageGallery({ section, items }: ImageGalleryProps) {
             <div key={item.id} className="card overflow-hidden bg-white group">
               <div className="overflow-hidden aspect-[4/3] bg-white">
                 {item.image_url ? (
-                  <img src={item.image_url} alt={item.title ? `${item.title} – project` : 'Selected work'} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" loading="lazy" decoding="async" />
+                  <SafeImage src={item.image_url} alt={item.title ? `${item.title} – project` : 'Selected work'} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" loading="lazy" decoding="async" />
                 ) : (
                   <div className="w-full h-full bg-slate-100 flex items-center justify-center text-gray-400">Work</div>
                 )}

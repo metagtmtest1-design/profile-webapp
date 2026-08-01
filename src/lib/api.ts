@@ -1,3 +1,4 @@
+import { debug } from './debug'
 export interface HealthResponse {
   status: 'ok' | 'error' | 'degraded'
   db: 'ok' | 'error'
@@ -78,7 +79,7 @@ export async function fetchJson(url: string, options: FetchOptions & { method?: 
     signal.addEventListener('abort', () => controller.abort(signal.reason))
   }
   try {
-    if (true) console.log(`!!! API_FETCH_START url=${url} method=${method} cache=${cache || 'default'} hasBody=${!!body} bodyLen=${body?.length || 0}`)
+    if (true) debug(`!!! API_FETCH_START url=${url} method=${method} cache=${cache || 'default'} hasBody=${!!body} bodyLen=${body?.length || 0}`)
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body, signal: controller.signal, cache: cache || 'no-store', credentials: 'same-origin' } as any)
     const json = await res.json().catch(() => null)
     if (!res.ok) {

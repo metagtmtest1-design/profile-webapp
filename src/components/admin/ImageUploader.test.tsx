@@ -58,8 +58,37 @@ describe('ImageUploader — PNG if ≤1MB else WebP within 1MB', () => {
 
   it('renders file input', () => {
     render(<ImageUploader onUploadComplete={vi.fn()} />)
-    expect(screen.getByText(/Select image to upload/i)).toBeInTheDocument()
-    // Free tier info removed per user request #2 — no longer displays PNG→WebP + replace details
+    expect(screen.getByRole('button', { name: /upload image/i })).toBeInTheDocument()
+    // Free tier info removed per user request #2 — no PNG→WebP spec, no 10GB math, no "No image" box
+    expect(screen.queryByText(/1MB max|max 1200px|10GB/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/No image/i)).not.toBeInTheDocument()
+  })
+
+  it('gives the file input the requested id so an outside element can trigger it', () => {
+    render(<ImageUploader inputId="upload-item1" onUploadComplete={vi.fn()} />)
+    const input = document.getElementById('upload-item1')
+    expect(input).toBeInstanceOf(HTMLInputElement)
+    expect((input as HTMLInputElement).type).toBe('file')
+  })
+
+  it('opens the file picker when the upload button is clicked', () => {
+    render(<ImageUploader onUploadComplete={vi.fn()} />)
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    // display:none inputs do not open the picker in Safari — must stay clickable
+    expect(input.className).not.toContain('hidden')
+    const clickSpy = vi.spyOn(input, 'click')
+    fireEvent.click(screen.getByRole('button', { name: /upload image/i }))
+    expect(clickSpy).toHaveBeenCalled()
+  })
+
+  it('hero variant renders one clickable preview and no second uploader', () => {
+    render(<ImageUploader variant="hero" currentImageUrl="/api/images/portfolio/hero.png" onUploadComplete={vi.fn()} />)
+    const input = document.querySelectorAll('input[type="file"]')
+    expect(input.length).toBe(1)
+    const target = screen.getByRole('button', { name: /replace hero image/i })
+    const clickSpy = vi.spyOn(input[0] as HTMLInputElement, 'click')
+    fireEvent.click(target)
+    expect(clickSpy).toHaveBeenCalled()
   })
 
   it('rejects non-image file type', async () => {
@@ -68,7 +97,7 @@ describe('ImageUploader — PNG if ≤1MB else WebP within 1MB', () => {
     const input = document.querySelector('input[type="file"]') as HTMLInputElement
     const txtFile = makeFile('doc.txt', 1000, 'text/plain')
     fireEvent.change(input, { target: { files: [txtFile] } })
-    await waitFor(() => expect(screen.getByText(/only images allowed/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/isn't an image/i)).toBeInTheDocument())
     expect(onError).toHaveBeenCalled()
   })
 
@@ -146,10 +175,9 @@ describe('ImageUploader — PNG if ≤1MB else WebP within 1MB', () => {
     await waitFor(() => expect(screen.getByText(/File too large/i)).toBeInTheDocument())
   })
 
-  it('shows button for select image upload (no duplicate)', async () => {
-    render(<ImageUploader onUploadComplete={vi.fn()} />)
-    // Should have button Select image, not duplicate large + thumb
-    expect(screen.getAllByText(/Select image/i).length).toBeGreaterThan(0)
-    expect(screen.getByText(/Drop or click to replace|Select image to upload|Replace image/i)).toBeInTheDocument()
+  it('shows exactly one upload control (no duplicate buttons)', async () => {
+    render(<ImageUploader currentImageUrl="/api/images/portfolio/a.png" onUploadComplete={vi.fn()} />)
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(document.querySelectorAll('input[type="file"]')).toHaveLength(1)
   })
 })

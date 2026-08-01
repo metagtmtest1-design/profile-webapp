@@ -38,14 +38,14 @@ describe('Admin page — inline edit identical to landing', () => {
   it('shows passwordless login when not authed', () => {
     mockUseAdminAuth.mockReturnValue({ data: { authed: false, error: 'Missing JWT' }, loading: false, error: 'Missing JWT', isAuthed: false, isBypass: false, email: null, refetch: vi.fn() })
     render(<Admin />)
-    expect(screen.getByText(/Passwordless Google Login/i)).toBeInTheDocument()
+    expect(screen.getByText(/Sign in to edit your site/i)).toBeInTheDocument()
   })
 
   it('shows minimal Admin top bar when authed, no big passwordless card', () => {
     mockUseAdminAuth.mockReturnValue({ data: { authed: true, email: 'bypass@local', bypass: true, env: 'local' }, loading: false, error: null, isAuthed: true, isBypass: true, email: 'bypass@local', refetch: vi.fn() })
     render(<Admin />)
     expect(screen.getByText(/^Admin$/)).toBeInTheDocument()
-    expect(screen.queryByText(/Passwordless Google Login — Cloudflare Zero Trust/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Sign in to edit your site/i)).not.toBeInTheDocument()
     expect(screen.getByText(/View site/i)).toBeInTheDocument()
   })
 
@@ -59,8 +59,9 @@ describe('Admin page — inline edit identical to landing', () => {
     // In-place edit: the hero heading itself is EditableText, not separate edit card below
     // Check for hero section type badge
     expect(screen.getAllByText(/hero/i).length).toBeGreaterThan(0)
-    // Image uploader compact
-    expect(screen.getAllByText(/Select image to upload|Replace image|Drop or click to replace/i).length).toBeGreaterThan(0)
+    // Hero has exactly one upload control — the large image itself, no duplicate uploader below
+    expect(screen.getByRole('button', { name: /replace hero image/i })).toBeInTheDocument()
+    expect(document.querySelectorAll('input[type="file"]')).toHaveLength(1)
   })
 
   it('edit card not complicated — well aligned, no separate big Edit hero card', () => {

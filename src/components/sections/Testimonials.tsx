@@ -17,7 +17,7 @@ export function Testimonials({ section, items }: TestimonialsProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {items.map((item) => (
             <div key={item.id} className="card p-6 bg-slate-50 border-slate-200">
-              <div className="flex gap-1 mb-3" aria-hidden="true">
+              <div className="flex gap-1 mb-3" role="img" aria-label="Rated 5 out of 5">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <span key={i} className="text-amber-400 text-sm">★</span>
                 ))}
