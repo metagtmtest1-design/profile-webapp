@@ -5,6 +5,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    // Dev only — lets the Dockerised test/browser containers reach the dev server
+    // by service name instead of just localhost.
+    allowedHosts: ['localhost', 'frontend', 'host.docker.internal'],
     proxy: {
       '/api': {
         // Use env var for Docker (backend service name), fallback to localhost

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import type { CalendarSlot } from '../../lib/api'
 import { TIMEZONE } from '../../lib/constants'
+import { formatSlotInterval } from '../../lib/datetime'
 
 export interface SlotPickerProps {
   date: string
@@ -10,25 +11,19 @@ export interface SlotPickerProps {
   slotMinutes?: number
 }
 
-function formatSlotTime(iso: string): string {
-  try {
-    const d = new Date(iso)
-    // Eastern timezone for now per user request, configurable via TIMEZONE admin later
-    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TIMEZONE })
-    return time.replace(/\s?[AP]M/i, '').trim()
-  } catch {
-    return iso
-  }
-}
-
-function formatSlotInterval(start: string, end: string): string {
-  return `${formatSlotTime(start)} - ${formatSlotTime(end)}`
-}
-
 function formatDateLong(dateStr: string): string {
   try {
-    const d = new Date(dateStr)
-    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TIMEZONE })
+    // A YYYY-MM-DD slot date is a plain calendar date. `new Date('2026-08-03')`
+    // parses as UTC midnight, so rendering it in Eastern rolled it back to Aug 2
+    // and the picker heading disagreed with the day the visitor clicked.
+    const [year, month, day] = dateStr.split('-').map(Number)
+    if (!year || !month || !day) return dateStr
+    return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'UTC',
+    })
   } catch {
     return dateStr
   }
@@ -51,10 +46,10 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
 
   if (!slots || slots.length === 0) {
     return (
-      <div className="card rounded-2xl p-6 bg-white text-center max-w-md w-full">
+      <div className="card rounded-2xl p-6 bg-white text-center w-full">
         <div className="w-10 h-10 rounded-full bg-slate-50 border mx-auto flex items-center justify-center mb-3">📅</div>
         <div className="text-sm font-semibold">No slots for {formatDateLong(date)}</div>
-        <div className="text-xs text-gray-500 mt-1">No availability • Try another date in the next 14 days</div>
+        <div className="text-xs text-gray-500 mt-1">Try another day in the next two weeks.</div>
         {onClose && (
           <button onClick={onClose} className="mt-4 px-4 py-2 rounded-full border text-xs font-medium hover:bg-gray-50">
             Close
@@ -65,11 +60,11 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
   }
 
   return (
-    <div className="card rounded-2xl p-6 bg-white shadow-sm max-w-md w-full relative">
+    <div className="card rounded-2xl p-6 bg-white shadow-sm w-full relative">
       <div className="flex justify-between items-start gap-3 mb-5">
         <div>
           <div className="font-bold text-base tracking-tight">{formatDateLong(date)}</div>
-          <div className="text-xs text-gray-500 mt-1">{availableCount} available • {slotMinutes} min • {TIMEZONE}</div>
+          <div className="text-xs text-gray-500 mt-1">{availableCount} times available · {slotMinutes} minutes each</div>
         </div>
         {onClose && (
           <button onClick={onClose} aria-label="Close time slots" className="w-9 h-9 rounded-full border bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm focus:outline-none focus:ring-2">
@@ -92,7 +87,7 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
           {morning.length > 0 && (
             <div>
               <div className="text-[11px] uppercase tracking-widest text-gray-400 mb-3 font-semibold">Morning</div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {morning.map((slot) => (
                   <button
                     key={slot.start}
@@ -108,7 +103,7 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
           {afternoon.length > 0 && (
             <div>
               <div className="text-[11px] uppercase tracking-widest text-gray-400 mb-3 font-semibold">Afternoon</div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {afternoon.map((slot) => (
                   <button
                     key={slot.start}

@@ -54,7 +54,9 @@ describe('EditableText — inline edit for admin', () => {
     const input = await screen.findByDisplayValue('Test')
     fireEvent.change(input, { target: { value: 'Saving Test' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByText(/Saving/i)).toBeInTheDocument()
+    // Queried by role: the field is a textarea, so its draft value ("Saving Test")
+    // is also its text content and a plain text query matches two elements.
+    expect(await screen.findByRole('button', { name: 'Save' })).toHaveTextContent('Saving…')
   })
 
   it('prevents empty save when required', async () => {

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { fetchAdminAuth, type AdminAuthResponse, type FetchOptions } from '../lib/api'
+import { debug } from '../lib/debug'
 
 export interface UseAdminAuthReturn {
   data: AdminAuthResponse | null
@@ -17,15 +18,15 @@ export function useAdminAuth(options?: FetchOptions): UseAdminAuthReturn {
   const [error, setError] = useState<string | null>(null)
 
   const fetchAuth = useCallback(async () => {
-    console.log('!!! USE_ADMIN_AUTH_FETCH_START')
+    debug('!!! USE_ADMIN_AUTH_FETCH_START')
     setLoading(true)
     setError(null)
     try {
       const result = await fetchAdminAuth(options)
-      console.log('!!! USE_ADMIN_AUTH_FETCH_SUCCESS authed=' + result.authed + ' email=' + result.email + ' bypass=' + result.bypass)
+      debug('!!! USE_ADMIN_AUTH_FETCH_SUCCESS authed=' + result.authed + ' email=' + result.email + ' bypass=' + result.bypass)
       setData(result)
     } catch (e: any) {
-      console.log('!!! USE_ADMIN_AUTH_FETCH_ERROR error=' + e?.message + ' status=' + e?.status + ' body=' + JSON.stringify(e?.body)?.slice(0,300))
+      debug('!!! USE_ADMIN_AUTH_FETCH_ERROR error=' + e?.message + ' status=' + e?.status + ' body=' + JSON.stringify(e?.body)?.slice(0,300))
       // ApiError with status 401/403 contains body with authed false
       if (e?.body?.authed === false) {
         setData(e.body as AdminAuthResponse)
@@ -35,7 +36,7 @@ export function useAdminAuth(options?: FetchOptions): UseAdminAuthReturn {
         setData(null)
       }
     } finally {
-      console.log('!!! USE_ADMIN_AUTH_FETCH_DONE loading->false')
+      debug('!!! USE_ADMIN_AUTH_FETCH_DONE loading->false')
       setLoading(false)
     }
   }, [])

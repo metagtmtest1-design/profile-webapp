@@ -32,7 +32,7 @@ ON CONFLICT(id) DO UPDATE SET heading=excluded.heading, sort_order=excluded.sort
 
 -- CTA Banner (4)
 INSERT INTO sections (id, page_id, type, heading, subheading, sort_order, config, is_visible)
-VALUES ('sec_cta', 'page_home', 'cta-banner', 'Ready to start your project?', 'Let’s talk about your ideas', 4, '{}', 1)
+VALUES ('sec_cta', 'page_home', 'cta-banner', 'Ready to start your project?', 'Book a free 30-minute intro call — no pitch, just practical next steps.', 4, '{}', 1)
 ON CONFLICT(id) DO UPDATE SET heading=excluded.heading, subheading=excluded.subheading, sort_order=excluded.sort_order, updated_at=datetime('now');
 
 -- Image Gallery (5) — my work
@@ -44,17 +44,17 @@ ON CONFLICT(id) DO UPDATE SET heading=excluded.heading, sort_order=excluded.sort
 
 -- Hero items (1)
 INSERT INTO section_items (id, section_id, title, body, image_url, link_url, link_text, sort_order, is_visible)
-VALUES ('item_hero_1', 'sec_hero', 'Welcome to My Portfolio', 'I help startups build memorable brands and intuitive digital products. Based in San Francisco, working globally.', 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=1200&auto=format&fit=crop', '/#services', 'Explore Services', 0, 1)
+VALUES ('item_hero_1', 'sec_hero', 'Welcome to My Portfolio', 'I help startups build memorable brands and intuitive digital products. Based in San Francisco, working globally.', 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=1200&auto=format&fit=crop', '/#calendar', 'Book a free call', 0, 1)
 ON CONFLICT(id) DO UPDATE SET title=excluded.title, body=excluded.body, image_url=excluded.image_url, link_url=excluded.link_url, link_text=excluded.link_text, updated_at=datetime('now');
 
 -- Services — 6 cards (2 rows x 3 cols)
 INSERT INTO section_items (id, section_id, title, body, icon, link_url, link_text, sort_order, is_visible) VALUES
-('item_svc_1', 'sec_services', 'Brand Strategy', 'Define your brand voice, positioning, and story', '🎯', '/#contact', 'Learn more', 0, 1),
-('item_svc_2', 'sec_services', 'Logo Design', 'Memorable marks that stand the test of time', '✨', '/#contact', 'Learn more', 1, 1),
-('item_svc_3', 'sec_services', 'Web Design', 'Clean, responsive websites that convert', '💻', '/#contact', 'Learn more', 2, 1),
-('item_svc_4', 'sec_services', 'Illustration', 'Custom illustrations that tell your story', '🎨', '/#contact', 'Learn more', 3, 1),
-('item_svc_5', 'sec_services', 'Art Direction', 'Creative direction for campaigns and launches', '📸', '/#contact', 'Learn more', 4, 1),
-('item_svc_6', 'sec_services', 'Consulting', '1:1 sessions to level up your brand', '💡', '/#contact', 'Learn more', 5, 1)
+('item_svc_1', 'sec_services', 'Brand Strategy', 'Define your brand voice, positioning, and story', '🎯', '/#calendar', 'Book a free call', 0, 1),
+('item_svc_2', 'sec_services', 'Logo Design', 'Memorable marks that stand the test of time', '✨', '/#calendar', 'Book a free call', 1, 1),
+('item_svc_3', 'sec_services', 'Web Design', 'Clean, responsive websites that convert', '💻', '/#calendar', 'Book a free call', 2, 1),
+('item_svc_4', 'sec_services', 'Illustration', 'Custom illustrations that tell your story', '🎨', '/#calendar', 'Book a free call', 3, 1),
+('item_svc_5', 'sec_services', 'Art Direction', 'Creative direction for campaigns and launches', '📸', '/#calendar', 'Book a free call', 4, 1),
+('item_svc_6', 'sec_services', 'Consulting', '1:1 sessions to level up your brand', '💡', '/#calendar', 'Book a free call', 5, 1)
 ON CONFLICT(id) DO UPDATE SET title=excluded.title, body=excluded.body, icon=excluded.icon, sort_order=excluded.sort_order, updated_at=datetime('now');
 
 -- About
@@ -71,7 +71,7 @@ ON CONFLICT(id) DO UPDATE SET title=excluded.title, body=excluded.body, author=e
 
 -- CTA
 INSERT INTO section_items (id, section_id, title, body, link_url, link_text, sort_order, is_visible)
-VALUES ('item_cta_1', 'sec_cta', 'Let’s build something great together', 'Available for new projects in Q3. Book a 30-min intro call.', '/#calendar', 'Book a Call', 0, 1)
+VALUES ('item_cta_1', 'sec_cta', NULL, NULL, '/#calendar', 'Book a free call', 0, 1)
 ON CONFLICT(id) DO UPDATE SET title=excluded.title, body=excluded.body, link_url=excluded.link_url, link_text=excluded.link_text, updated_at=datetime('now');
 
 -- Gallery — 6 images

@@ -1,3 +1,4 @@
+import { debug } from './debug'
 /**
  * Client-side image resize — PNG if ≤1MB (lossless) else WebP compress within 1MB
  * 100 images scenario (profile, icons, services, testimonials, gallery) ×400KB avg =40MB per env, alpha+prod 80-100MB <1% of 10GB free tier
@@ -43,31 +44,64 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number)
   })
 }
 
-async function loadImageDimensions(file: File): Promise<{ width: number; height: number; bitmap?: ImageBitmap }> {
+type DecodedImage = { width: number; height: number; source: CanvasImageSource }
+
+/** Decode via createImageBitmap, falling back to <img> for browsers that lack it. */
+async function decodeImage(file: File): Promise<DecodedImage | null> {
   if (typeof createImageBitmap === 'function') {
     try {
       const bitmap = await createImageBitmap(file)
-      return { width: bitmap.width, height: bitmap.height, bitmap }
+      return { width: bitmap.width, height: bitmap.height, source: bitmap }
     } catch {}
   }
-  return { width: 1600, height: 1200 }
+
+  if (typeof Image === 'function' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+    const url = URL.createObjectURL(file)
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image()
+        el.onload = () => resolve(el)
+        el.onerror = () => reject(new Error('decode failed'))
+        el.src = url
+      })
+      return { width: img.naturalWidth, height: img.naturalHeight, source: img }
+    } catch {
+      return null
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  return null
+}
+
+/** True in a real browser; false in jsdom, which has no 2d context. */
+function canRasterise(): boolean {
+  if (typeof document === 'undefined' || typeof document.createElement !== 'function') return false
+  try {
+    return Boolean(document.createElement('canvas').getContext('2d'))
+  } catch {
+    return false
+  }
 }
 
 export async function resizeImage(file: File, maxDim: number = MAX_DIMENSION, maxSize: number = MAX_FILE_SIZE): Promise<ResizeResult> {
   if (!isImageFile(file)) {
-    throw new Error(`Invalid file type ${file.type} — only images allowed`)
+    throw new Error("That file isn't an image — please choose a JPG, PNG or WebP.")
   }
 
   const originalSize = file.size
-  let origW = 1600
-  let origH = 1200
-  let imageBitmap: ImageBitmap | undefined
-  try {
-    const dim = await loadImageDimensions(file)
-    origW = dim.width
-    origH = dim.height
-    imageBitmap = dim.bitmap
-  } catch {}
+  const decoded = await decodeImage(file)
+
+  // Never invent dimensions and upload a blank canvas: an undecodable file (a
+  // corrupt PNG, or a HEIC straight off an iPhone) used to be "resized" into a
+  // plain white 1200×900 rectangle and reported as a successful upload.
+  if (!decoded && canRasterise()) {
+    throw new Error('Could not read this image — it may be corrupt or an unsupported format (e.g. HEIC). Try a JPG, PNG or WebP.')
+  }
+
+  const origW = decoded?.width ?? 1600
+  const origH = decoded?.height ?? 1200
 
   for (const dim of FALLBACK_DIMENSIONS) {
     if (dim > maxDim) continue
@@ -100,11 +134,9 @@ export async function resizeImage(file: File, maxDim: number = MAX_DIMENSION, ma
           canvas = createMockCanvas(width, height)
         } else {
           canvas = c
-          ctx.fillStyle = '#ffffff'
-          ctx.fillRect(0, 0, width, height)
-          if (imageBitmap) {
-            ctx.drawImage(imageBitmap, 0, 0, width, height)
-          }
+          // No white fill — that flattened transparency on logo/icon PNGs.
+          ctx.clearRect(0, 0, width, height)
+          ctx.drawImage(decoded!.source, 0, 0, width, height)
         }
       } catch {
         canvas = createMockCanvas(width, height)
@@ -116,20 +148,20 @@ export async function resizeImage(file: File, maxDim: number = MAX_DIMENSION, ma
     const pngBlob = await canvasToBlob(canvas, 'image/png')
     if (pngBlob) {
       if (isFileSizeWithinLimit(pngBlob.size, maxSize)) {
-        console.log(`!!! IMAGE_RESIZE PNG fits dim=${dim} ${width}x${height} orig=${originalSize} png=${pngBlob.size}`)
+        debug(`!!! IMAGE_RESIZE PNG fits dim=${dim} ${width}x${height} orig=${originalSize} png=${pngBlob.size}`)
         return { blob: pngBlob, format: 'png', width, height, originalSize, finalSize: pngBlob.size, usedFallbackDimension: dim }
       }
-      console.log(`!!! IMAGE_RESIZE PNG too big dim=${dim} png=${pngBlob.size} >1MB, trying WebP`)
+      debug(`!!! IMAGE_RESIZE PNG too big dim=${dim} png=${pngBlob.size} >1MB, trying WebP`)
     }
 
     for (const q of [0.9, 0.8, 0.7, 0.6, 0.5]) {
       const webpBlob = await canvasToBlob(canvas, 'image/webp', q)
       if (webpBlob && isFileSizeWithinLimit(webpBlob.size, maxSize)) {
-        console.log(`!!! IMAGE_RESIZE WebP fits dim=${dim} ${width}x${height} q=${q} size=${webpBlob.size}`)
+        debug(`!!! IMAGE_RESIZE WebP fits dim=${dim} ${width}x${height} q=${q} size=${webpBlob.size}`)
         return { blob: webpBlob, format: 'webp', width, height, originalSize, finalSize: webpBlob.size, quality: q, usedFallbackDimension: dim }
       }
     }
-    console.log(`!!! IMAGE_RESIZE both too big at dim=${dim}, trying smaller`)
+    debug(`!!! IMAGE_RESIZE both too big at dim=${dim}, trying smaller`)
   }
 
   throw new Error(`Unable to resize within ${maxSize} bytes even at ${FALLBACK_DIMENSIONS[FALLBACK_DIMENSIONS.length - 1]}px`)

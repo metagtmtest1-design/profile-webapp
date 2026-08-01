@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { debug } from '../../lib/debug'
 
 interface BookingItem {
   id: string
@@ -20,21 +21,25 @@ export function ManageBookings() {
   const [bookings, setBookings] = useState<BookingItem[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [challengeFailed, setChallengeFailed] = useState(false)
+  const [needsInteraction, setNeedsInteraction] = useState(false)
 
   // Turnstile widget for lookup (reuse same site key)
   const widgetIdRef = useRef<string | number | null>(null)
+  const tokenRef = useRef('')
+  tokenRef.current = turnstileToken
 
   const renderTurnstile = useCallback(() => {
     const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     if (isLocalHost) {
-      console.log('!!! MANAGE_TURNSTILE_LOCALHOST fake token')
+      debug('!!! MANAGE_TURNSTILE_LOCALHOST fake token')
       setTurnstileToken('fake-token-for-test')
       return true
     }
     const siteKey = (window as any)?.TURNSTILE_SITE_KEY || '0x4AAAAAAD8-3h6x-RUDasMf'
     if (typeof window !== 'undefined' && (window as any).turnstile) {
       try {
-        console.log(`!!! MANAGE_TURNSTILE_RENDER siteKey=${siteKey}`)
+        debug(`!!! MANAGE_TURNSTILE_RENDER siteKey=${siteKey}`)
         const el = document.querySelector('#manage-turnstile-widget')
         if (el) el.innerHTML = ''
         if (widgetIdRef.current !== null) {
@@ -45,22 +50,24 @@ export function ManageBookings() {
         const id = (window as any).turnstile.render('#manage-turnstile-widget', {
           sitekey: siteKey,
           callback: (token: string) => {
-            console.log(`!!! MANAGE_TURNSTILE_CALLBACK len=${token.length}`)
+            debug(`!!! MANAGE_TURNSTILE_CALLBACK len=${token.length}`)
             setTurnstileToken(token)
           },
+          'before-interactive-callback': () => setNeedsInteraction(true),
+          'after-interactive-callback': () => setNeedsInteraction(false),
           'error-callback': () => {
-            console.log('!!! MANAGE_TURNSTILE_ERROR')
+            debug('!!! MANAGE_TURNSTILE_ERROR')
             setTurnstileToken('')
           },
           'expired-callback': () => {
-            console.log('!!! MANAGE_TURNSTILE_EXPIRED')
+            debug('!!! MANAGE_TURNSTILE_EXPIRED')
             setTurnstileToken('')
           },
         })
         widgetIdRef.current = id
         return true
       } catch (e: any) {
-        console.log(`!!! MANAGE_TURNSTILE_RENDER_FAIL ${e?.message}`)
+        debug(`!!! MANAGE_TURNSTILE_RENDER_FAIL ${e?.message}`)
         return false
       }
     }
@@ -68,7 +75,7 @@ export function ManageBookings() {
   }, [])
 
   const resetTurnstile = useCallback(() => {
-    console.log('!!! MANAGE_TURNSTILE_RESET')
+    debug('!!! MANAGE_TURNSTILE_RESET')
     setTurnstileToken('')
     const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     if (isLocalHost) {
@@ -92,12 +99,20 @@ export function ManageBookings() {
       setTurnstileToken('fake-token-for-test')
       return
     }
-    if (!renderTurnstile()) {
-      const interval = setInterval(() => {
-        if (renderTurnstile()) clearInterval(interval)
-      }, 500)
-      setTimeout(() => clearInterval(interval), 10000)
-      return () => clearInterval(interval)
+    renderTurnstile()
+    const interval = setInterval(() => {
+      if (renderTurnstile()) clearInterval(interval)
+    }, 500)
+    // Cloudflare can be blocked or simply fail to answer. Without this the button
+    // stayed disabled forever with nothing on screen explaining why. Read through a
+    // ref so a delivered token doesn't restart the whole widget.
+    const giveUp = setTimeout(() => {
+      clearInterval(interval)
+      if (!tokenRef.current) setChallengeFailed(true)
+    }, 10000)
+    return () => {
+      clearInterval(interval)
+      clearTimeout(giveUp)
     }
   }, [renderTurnstile])
 
@@ -109,10 +124,10 @@ export function ManageBookings() {
       return
     }
     if (!turnstileToken) {
-      setError('Please complete verification (Turnstile)')
+      setError('Please finish the spam check above, then try again.')
       return
     }
-    console.log(`!!! MANAGE_LOOKUP_START email=${trimmed} hasToken=${!!turnstileToken}`)
+    debug(`!!! MANAGE_LOOKUP_START email=${trimmed} hasToken=${!!turnstileToken}`)
     setLoading(true)
     setError(null)
     try {
@@ -123,7 +138,7 @@ export function ManageBookings() {
         cache: 'no-store' as any,
       })
       const json = (await res.json()) as any
-      console.log(`!!! MANAGE_LOOKUP_RESULT status=${res.status} count=${json.count} bookings=${json.bookings?.length}`)
+      debug(`!!! MANAGE_LOOKUP_RESULT status=${res.status} count=${json.count} bookings=${json.bookings?.length}`)
       if (!res.ok) {
         throw new Error(json.error || 'Lookup failed')
       }
@@ -131,7 +146,7 @@ export function ManageBookings() {
       setHasSearched(true)
       resetTurnstile()
     } catch (err: any) {
-      console.log(`!!! MANAGE_LOOKUP_ERROR ${err.message}`)
+      debug(`!!! MANAGE_LOOKUP_ERROR ${err.message}`)
       setError(err.message)
       resetTurnstile()
     } finally {
@@ -140,8 +155,8 @@ export function ManageBookings() {
   }
 
   const handleCancel = async (booking: BookingItem) => {
-    if (!confirm(`Cancel meeting ${booking.dateTime} — Purpose: ${booking.purpose || 'Intro'}? Slot will become free.`)) return
-    console.log(`!!! MANAGE_CANCEL_START id=${booking.id} token=${booking.cancelToken.slice(0, 8)}...`)
+    if (!confirm(`Cancel your ${booking.dateTime} meeting? The slot will be released.`)) return
+    debug(`!!! MANAGE_CANCEL_START id=${booking.id} token=${booking.cancelToken.slice(0, 8)}...`)
     setCancellingId(booking.id)
     try {
       // Use existing cancel endpoint via token which deletes Google event + marks cancelled
@@ -151,7 +166,7 @@ export function ManageBookings() {
         cache: 'no-store' as any,
       })
       const json = (await res.json().catch(() => ({}))) as any
-      console.log(`!!! MANAGE_CANCEL_RESULT status=${res.status} success=${json.success} calendarDeleted=${json.calendarDeleted}`)
+      debug(`!!! MANAGE_CANCEL_RESULT status=${res.status} success=${json.success} calendarDeleted=${json.calendarDeleted}`)
       if (!res.ok) {
         throw new Error(json.error || 'Cancel failed')
       }
@@ -160,7 +175,7 @@ export function ManageBookings() {
       // Trigger calendar refetch if on same page — dispatch custom event that Home listens for
       window.dispatchEvent(new CustomEvent('bookings-cancelled', { detail: { bookingId: booking.id } }))
     } catch (err: any) {
-      console.log(`!!! MANAGE_CANCEL_ERROR ${err.message}`)
+      debug(`!!! MANAGE_CANCEL_ERROR ${err.message}`)
       setError(err.message)
     } finally {
       setCancellingId(null)
@@ -174,20 +189,35 @@ export function ManageBookings() {
           Manage bookings
         </h2>
         <p className="text-sm text-slate-600 mt-2">
-          No custom domain for Resend? No problem — lookup your bookings by email and cancel directly from website. Purpose shown in list and will be in calendar invite.
+          Look up or cancel a booking — enter the email you booked with.
         </p>
 
         <form onSubmit={handleLookup} className="card rounded-2xl p-6 mt-6 space-y-4">
           <div>
-            <label className="label text-sm font-medium">Email address</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="input w-full px-4 py-2.5 border rounded-xl text-sm mt-1" />
+            <label htmlFor="manage-bookings-email" className="label text-sm font-medium">Email address</label>
+            <input id="manage-bookings-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="input w-full px-4 py-2.5 border rounded-xl text-sm mt-1" />
           </div>
 
-          <div id="manage-turnstile-widget" data-testid="manage-turnstile-widget" className="min-h-[65px]" />
+          {/* Hidden unless Cloudflare asks the visitor to act — see BookingForm. */}
+          <div id="manage-turnstile-widget" data-testid="manage-turnstile-widget" className={needsInteraction ? '' : 'hidden'} />
+
+          {challengeFailed && (
+            <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-800" role="alert">
+              We couldn't run the spam check — it may be blocked by your browser or network.{' '}
+              <button type="button" onClick={() => { setChallengeFailed(false); resetTurnstile() }} className="underline font-semibold">
+                Try again
+              </button>
+            </div>
+          )}
 
           <button type="submit" disabled={loading || !turnstileToken} className="btn-primary rounded-full w-full justify-center px-8 py-3 text-sm font-semibold leading-none disabled:opacity-50">
-            {loading ? 'Looking up…' : !turnstileToken ? 'Waiting verification…' : 'Lookup bookings →'}
+            {loading ? 'Looking up…' : 'Find my bookings'}
           </button>
+          {/* Says why the button is dim rather than putting a machine state
+              ("Waiting verification…") on the button itself. */}
+          {!turnstileToken && !loading && !challengeFailed && (
+            <p className="text-xs text-gray-500 text-center">Just finishing a quick spam check…</p>
+          )}
 
           {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
         </form>
@@ -204,8 +234,7 @@ export function ManageBookings() {
                     <div className="flex justify-between items-start gap-4">
                       <div>
                         <div className="text-sm font-bold">{b.dateTime}</div>
-                        {b.purpose && <div className="text-xs mt-1 px-2 py-1 bg-slate-50 border rounded-full inline-block">Purpose: {b.purpose}</div>}
-                        <div className="text-[11px] text-slate-500 mt-1">Booking ID: {b.id} — Purpose will be in calendar invite</div>
+                        {b.purpose && <div className="text-xs mt-1 px-2 py-1 bg-slate-50 border rounded-full inline-block">{b.purpose}</div>}
                       </div>
                       <span className={`px-3 py-1 rounded-full text-[11px] font-semibold ${b.status === 'confirmed' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-slate-50 text-slate-600 border'}`}>
                         {b.status}
@@ -215,9 +244,6 @@ export function ManageBookings() {
                       <button onClick={() => handleCancel(b)} disabled={cancellingId === b.id} className="px-5 py-2.5 bg-white border border-red-200 text-red-700 rounded-full text-xs font-semibold hover:bg-red-50 disabled:opacity-50 leading-none">
                         {cancellingId === b.id ? 'Cancelling…' : 'Cancel meeting'}
                       </button>
-                      <a href={b.cancelUrl} className="px-5 py-2.5 border rounded-full text-xs font-medium hover:bg-slate-50 leading-none" target="_blank" rel="noopener noreferrer">
-                        Open cancel link
-                      </a>
                     </div>
                   </li>
                 ))}

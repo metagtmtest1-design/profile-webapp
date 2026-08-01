@@ -1,5 +1,6 @@
 import React from 'react'
 import type { Section, SectionItem } from '../../lib/api'
+import { SafeImage } from '../common/SafeImage'
 
 export interface CardsGridProps {
   section: Section
@@ -16,20 +17,19 @@ export function CardsGrid({ section, items }: CardsGridProps) {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {items.map((item, idx) => (
-            <div key={item.id} className="card p-8 group">
-              <div className="flex items-center justify-between mb-5">
+            <div key={item.id} className="card p-8">
+              {/* The admin offers an uploader on every card, so the card has to show the
+                  result — six "Uploaded ✓" ticks used to change nothing on the live page. */}
+              {item.image_url && (
+                <SafeImage src={item.image_url} alt="" className="w-full rounded-xl object-cover aspect-video mb-5" loading="lazy" decoding="async" />
+              )}
+              <div className="flex items-center mb-5">
                 <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-xl flex-none">
                   <span aria-hidden="true" style={{ fontSize: '22px', lineHeight: 1 }}>{item.icon || ['◈','✦','⬙','◎','◐','✧'][idx % 6]}</span>
                 </div>
-                <span className="text-xs font-mono text-gray-400">0{idx + 1}</span>
               </div>
               {item.title && <h3 className="font-bold text-[17px] mb-2 tracking-tight">{item.title}</h3>}
               {item.body && <p className="text-gray-600 text-sm leading-relaxed mb-4">{item.body}</p>}
-              {item.link_url && (
-                <a href={item.link_url} className="text-sm font-semibold inline-flex items-center gap-1 hover:gap-2 transition-all">
-                  {item.link_text || 'Learn more'} <span aria-hidden>→</span>
-                </a>
-              )}
             </div>
           ))}
         </div>

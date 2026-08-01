@@ -9,8 +9,7 @@ describe('CalendarView', () => {
     } as any
 
     render(<CalendarView grouped={grouped} selectedDate={null} onDateSelect={vi.fn()} excludeToday={false} slotMinutes={30} />)
-    // Should show next 14 days selectable header
-    expect(screen.getByText(/Next 14 days selectable/i)).toBeInTheDocument()
+    expect(screen.getByText(/next two weeks/i)).toBeInTheDocument()
     // Weekday header has Sun first and Sat last (header row)
     const headerRow = document.querySelector('.grid.grid-cols-7')
     expect(headerRow?.textContent).toMatch(/Sun/)
@@ -21,12 +20,23 @@ describe('CalendarView', () => {
     expect(buttons.length).toBeLessThanOrEqual(21)
   })
 
+  it('should place every day under its own weekday column', () => {
+    // The grid used to be built with local-time arithmetic and rendered in Eastern
+    // time, so "SAT 1 Aug" landed under the "SUN" header for anyone west of Eastern.
+    render(<CalendarView grouped={{} as any} selectedDate={null} onDateSelect={vi.fn()} excludeToday={false} slotMinutes={30} />)
+    const headers = [...document.querySelectorAll('.grid.grid-cols-7')[0].children].map((el) => el.textContent!.trim().toUpperCase())
+    const cells = [...document.querySelectorAll('button[aria-label]')]
+    expect(cells.length).toBeGreaterThanOrEqual(14)
+    cells.forEach((cell, i) => {
+      const dow = cell.getAttribute('aria-label')!.slice(0, 3).toUpperCase()
+      expect(dow).toBe(headers[i % 7])
+    })
+  })
+
   it('should support excludeToday option not taking any schedule today', () => {
     const grouped = {} as any
     render(<CalendarView grouped={grouped} selectedDate={null} onDateSelect={vi.fn()} excludeToday={true} slotMinutes={30} />)
-    // Badge and note both contain From tomorrow — check at least one, and badge No bookings today
-    expect(screen.getAllByText(/No bookings today/i).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText(/From tomorrow/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText(/Booking opens from tomorrow/i)).toBeInTheDocument()
   })
 
   it('should highlight dates with available slots and selected state', () => {

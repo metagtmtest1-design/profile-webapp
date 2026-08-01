@@ -66,7 +66,29 @@ describe('imageResize — PNG if ≤1MB else WebP within 1MB', () => {
 
   it('throws for non-image file', async () => {
     const file = makeFile('doc.txt', 1000, 'text/plain')
-    await expect(resizeImage(file)).rejects.toThrow(/only images/i)
+    await expect(resizeImage(file)).rejects.toThrow(/isn't an image/i)
+  })
+
+  it('rejects an undecodable image instead of uploading a blank white canvas', async () => {
+    // A corrupt PNG (or a HEIC off an iPhone) used to be "resized" into a plain
+    // white 1200×900 rectangle and reported as a successful upload.
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({ clearRect: vi.fn(), drawImage: vi.fn(), fillRect: vi.fn() }),
+      toBlob: (cb: any, type: string) => cb(new Blob([new Uint8Array(1000)], { type })),
+    }
+    const createElement = vi.spyOn(document, 'createElement').mockReturnValue(canvas as any)
+    const bitmap = vi.fn().mockRejectedValue(new Error('cannot decode'))
+    vi.stubGlobal('createImageBitmap', bitmap)
+    vi.stubGlobal('Image', undefined)
+
+    try {
+      await expect(resizeImage(makeFile('corrupt.png', 5000, 'image/png'))).rejects.toThrow(/could not read this image/i)
+    } finally {
+      createElement.mockRestore()
+      vi.unstubAllGlobals()
+    }
   })
 
   it('100 images scenario: each resized ≤1MB passes, total 40MB per env, 80MB combined <1% of 10GB free tier', async () => {
