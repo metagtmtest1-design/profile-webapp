@@ -179,18 +179,41 @@ export function Admin() {
 
                 {section.type === 'hero' && (
                   <div className="py-16 px-6 sm:px-8">
-                    <h1 className="text-4xl lg:text-5xl font-black leading-tight tracking-tight mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
-                      <EditableText value={section.heading || ''} onSave={async (v) => { try { await content.updateSection(section.id, { heading: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Hero heading — current" required ariaLabel="Hero heading" displayClassName="text-4xl lg:text-5xl font-black" inputClassName="text-4xl lg:text-5xl font-black" />
-                    </h1>
-                    <div className="text-xl text-gray-600 mb-4 max-w-[60ch]">
-                      <EditableText value={section.subheading || ''} onSave={async (v) => { try { await content.updateSection(section.id, { subheading: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Subheading — current" multiline ariaLabel="Hero subheading" displayClassName="text-xl text-gray-600" inputClassName="text-xl text-gray-600" />
-                    </div>
-                    {items[0] && (
-                      <div className="space-y-3 max-w-[60ch]">
-                        <div className="text-gray-600"><EditableText value={items[0].body || ''} onSave={async (v) => { try { await content.updateItem(items[0].id, { body: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Body — current" multiline /></div>
-                        <ImageUploader currentImageUrl={items[0].image_url} oldKey={getOldKeyFromUrl(items[0].image_url)} onUploadComplete={async (r) => { try { await content.updateItem(items[0].id, { image_url: r.url } as any) } catch (e: any) { setGlobalError(e?.message) } }} />
+                    <div className="max-w-5xl mx-auto">
+                      <div className="flex flex-col lg:flex-row gap-10 items-center">
+                        <div className="flex-1 w-full">
+                          <h1 className="text-4xl lg:text-5xl font-black leading-tight tracking-tight mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
+                            <EditableText value={section.heading || ''} onSave={async (v) => { try { await content.updateSection(section.id, { heading: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Hero heading — current" required ariaLabel="Hero heading" displayClassName="text-4xl lg:text-5xl font-black" inputClassName="text-4xl lg:text-5xl font-black" />
+                          </h1>
+                          <div className="text-xl text-gray-600 mb-4 max-w-[60ch]">
+                            <EditableText value={section.subheading || ''} onSave={async (v) => { try { await content.updateSection(section.id, { subheading: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Subheading — current" multiline ariaLabel="Hero subheading" displayClassName="text-xl text-gray-600" inputClassName="text-xl text-gray-600" />
+                          </div>
+                          {items[0] && (
+                            <div className="space-y-3 max-w-[60ch]">
+                              <div className="text-gray-600"><EditableText value={items[0].body || ''} onSave={async (v) => { try { await content.updateItem(items[0].id, { body: v } as any) } catch (e: any) { setGlobalError(e?.message) } }} placeholder="Body — current" multiline /></div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 w-full">
+                          {items[0] && (
+                            <div className="space-y-2">
+                              <div className="text-[11px] font-semibold text-gray-500">Hero image — current — click image to replace — resized 1200px max, PNG if ≤1MB else WebP</div>
+                              <div className="relative group">
+                                {items[0].image_url ? (
+                                  <img src={items[0].image_url} alt="current hero" className="w-full rounded-2xl shadow-lg object-cover aspect-[4/3] cursor-pointer hover:opacity-90 transition-opacity" loading="lazy" onClick={() => document.getElementById(`upload-${items[0].id}`)?.click()} />
+                                ) : (
+                                  <div className="w-full aspect-[4/3] bg-slate-50 border-2 border-dashed rounded-2xl flex items-center justify-center text-gray-400 text-xs">No hero image — click Select below</div>
+                                )}
+                                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <span className="px-2.5 py-1 rounded-full bg-black/70 text-white text-[10px] flex items-center gap-1">📤 Click to replace</span>
+                                </div>
+                              </div>
+                              <ImageUploader currentImageUrl={undefined} oldKey={getOldKeyFromUrl(items[0].image_url)} onUploadComplete={async (r) => { try { await content.updateItem(items[0].id, { image_url: r.url } as any) } catch (e: any) { setGlobalError(e?.message) } }} />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
 
