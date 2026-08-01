@@ -200,7 +200,7 @@ export function Admin() {
                               <div className="text-[11px] font-semibold text-gray-500">Hero image — current — click image to replace — resized 1200px max, PNG if ≤1MB else WebP</div>
                               <div className="relative group">
                                 {items[0].image_url ? (
-                                  <img src={items[0].image_url} alt="current hero" className="w-full rounded-2xl shadow-lg object-cover aspect-[4/3] cursor-pointer hover:opacity-90 transition-opacity" loading="lazy" onClick={() => document.getElementById(`upload-${items[0].id}`)?.click()} />
+                                  <img src={items[0].image_url} alt="current hero — click to replace, upload icon" className="w-full rounded-2xl shadow-lg object-cover aspect-[4/3] cursor-pointer hover:opacity-90 transition-opacity" loading="lazy" role="button" tabIndex={0} onClick={() => document.getElementById(`upload-${items[0].id}`)?.click()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(`upload-${items[0].id}`)?.click() } }} />
                                 ) : (
                                   <div className="w-full aspect-[4/3] bg-slate-50 border-2 border-dashed rounded-2xl flex items-center justify-center text-gray-400 text-xs">No hero image — click Select below</div>
                                 )}
@@ -208,7 +208,7 @@ export function Admin() {
                                   <span className="px-2.5 py-1 rounded-full bg-black/70 text-white text-[10px] flex items-center gap-1">📤 Click to replace</span>
                                 </div>
                               </div>
-                              <ImageUploader currentImageUrl={undefined} oldKey={getOldKeyFromUrl(items[0].image_url)} onUploadComplete={async (r) => { try { await content.updateItem(items[0].id, { image_url: r.url } as any) } catch (e: any) { setGlobalError(e?.message) } }} />
+                              <ImageUploader inputId={`upload-${items[0].id}`} currentImageUrl={undefined} oldKey={getOldKeyFromUrl(items[0].image_url)} onUploadComplete={async (r) => { try { await content.updateItem(items[0].id, { image_url: r.url } as any) } catch (e: any) { setGlobalError(e?.message) } }} />
                             </div>
                           )}
                         </div>

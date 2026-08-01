@@ -3,12 +3,13 @@ import { resizeImage, isImageFile, MAX_FILE_SIZE, MAX_DIMENSION } from '../../li
 
 export interface ImageUploaderProps {
   currentImageUrl?: string
-  oldKey?: string // portfolio/old.png to delete before put new (replace-on-update to stay under 10GB free tier)
+  oldKey?: string
+  inputId?: string // id for file input to allow hero large image click to trigger via getElementById
   onUploadComplete: (result: { url: string; key: string; size: number; format: string }) => void
   onError?: (error: string) => void
 }
 
-export function ImageUploader({ currentImageUrl, oldKey, onUploadComplete, onError }: ImageUploaderProps) {
+export function ImageUploader({ currentImageUrl, oldKey, inputId, onUploadComplete, onError }: ImageUploaderProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentImageUrl || null)
