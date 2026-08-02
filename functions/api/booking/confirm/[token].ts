@@ -176,8 +176,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env, request })
         }
       }
       const bookingId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
-      const insertBookingStmt = db.prepare('INSERT INTO bookings (id, contact_id, calendar_event_id, purpose, cancel_token, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime("now"))')
-      await insertBookingStmt.bind(bookingId, contactId!, calendarEventId, pending.purpose || null, cancelToken, 'confirmed').run()
+      // The pending row already carries the slot the visitor picked; carry it across so
+      // "Manage bookings" shows the meeting time rather than the moment they confirmed.
+      const insertBookingStmt = db.prepare('INSERT INTO bookings (id, contact_id, calendar_event_id, purpose, cancel_token, status, slot_start, slot_end, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime("now"))')
+      await insertBookingStmt.bind(bookingId, contactId!, calendarEventId, pending.purpose || null, cancelToken, 'confirmed', pending.slot_start, pending.slot_end).run()
       console.log(`!!! CONFIRM_BOOKING_INSERT_OK bookingId=${bookingId}`)
     } catch (e: any) {
       console.log(`!!! CONFIRM_BOOKING_INSERT_ERROR ${e?.message}`)

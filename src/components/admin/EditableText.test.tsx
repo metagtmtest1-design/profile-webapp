@@ -13,10 +13,10 @@ describe('EditableText — inline edit for admin', () => {
     expect(screen.getByText('Click to edit')).toBeInTheDocument()
   })
 
-  it('double-click enters edit mode with input', async () => {
+  it('click enters edit mode with input (double-click removed per UIUX feedback to avoid double trigger)', async () => {
     render(<EditableText value="Hello" onSave={vi.fn()} />)
     const display = screen.getByText('Hello')
-    fireEvent.doubleClick(display)
+    fireEvent.click(display)
     expect(await screen.findByDisplayValue('Hello')).toBeInTheDocument()
   })
 
@@ -54,7 +54,9 @@ describe('EditableText — inline edit for admin', () => {
     const input = await screen.findByDisplayValue('Test')
     fireEvent.change(input, { target: { value: 'Saving Test' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByText(/Saving/i)).toBeInTheDocument()
+    // Queried by role: the field is a textarea, so its draft value ("Saving Test")
+    // is also its text content and a plain text query matches two elements.
+    expect(await screen.findByRole('button', { name: 'Save' })).toHaveTextContent('Saving…')
   })
 
   it('prevents empty save when required', async () => {

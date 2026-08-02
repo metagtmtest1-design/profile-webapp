@@ -1,5 +1,6 @@
 import React from 'react'
 import type { Section, SectionItem } from '../../lib/api'
+import { StarRating } from '../common/StarRating'
 
 export interface TestimonialsProps {
   section: Section
@@ -16,14 +17,10 @@ export function Testimonials({ section, items }: TestimonialsProps) {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {items.map((item) => (
-            <div key={item.id} className="card p-6 bg-slate-50 border-slate-200">
-              <div className="flex gap-1 mb-3" aria-hidden="true">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className="text-amber-400 text-sm">★</span>
-                ))}
-              </div>
+            <div key={item.id} className="card p-6 bg-slate-50 border-slate-200 flex flex-col">
+              <StarRating rating={item.rating} className="mb-3" />
               {item.body && <p className="text-gray-800 leading-relaxed mb-5">"{item.body}"</p>}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 mt-auto">
                 <div className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold flex-none">
                   {item.author?.trim()?.[0] || '•'}
                 </div>

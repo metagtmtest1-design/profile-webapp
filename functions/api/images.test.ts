@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { onRequestGet } from './images'
+import { onRequestGet } from './images/[[key]]'
 
 function mockRequest(url: string) {
   return { url } as any

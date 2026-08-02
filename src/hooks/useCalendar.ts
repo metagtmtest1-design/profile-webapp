@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { fetchSlotsFull, type CalendarSlot, type FetchOptions } from '../lib/api'
+import { debug } from '../lib/debug'
 
 export interface UseCalendarReturn {
   slots: CalendarSlot[]
@@ -23,9 +24,9 @@ export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalen
     setLoading(true)
     setError(null)
     try {
-      console.log(`!!! USECALENDAR_FETCH_START weeks=${weeks}`)
+      debug(`!!! USECALENDAR_FETCH_START weeks=${weeks}`)
       const full = await fetchSlotsFull(weeks, options)
-      console.log(`!!! USECALENDAR_FETCH_RESULT slots=${full.slots.length} source=${full.source}`)
+      debug(`!!! USECALENDAR_FETCH_RESULT slots=${full.slots.length} source=${full.source}`)
       setSlots(full.slots)
       // Configurable slot duration multiple of 15 per requirement, from API workingHours
       if (full.workingHours?.slotMinutes) {
@@ -35,7 +36,7 @@ export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalen
         setExcludeToday(!!full.workingHours.excludeToday)
       }
     } catch (e: any) {
-      console.log(`!!! USECALENDAR_FETCH_ERROR ${e.message}`)
+      debug(`!!! USECALENDAR_FETCH_ERROR ${e.message}`)
       setError(e.message || String(e))
       setSlots([])
     } finally {
@@ -44,7 +45,7 @@ export function useCalendar(weeks: number = 2, options?: FetchOptions): UseCalen
   }, [weeks])
 
   const removeSlot = useCallback((slotToRemove: CalendarSlot | { start: string; end: string; date?: string }) => {
-    console.log(`!!! USECALENDAR_REMOVE_SLOT start=${slotToRemove.start} optimistic removal to prevent stale display until reload`)
+    debug(`!!! USECALENDAR_REMOVE_SLOT start=${slotToRemove.start} optimistic removal to prevent stale display until reload`)
     setSlots((prev) => prev.filter((s) => s.start !== slotToRemove.start))
   }, [])
 
