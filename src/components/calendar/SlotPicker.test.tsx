@@ -57,16 +57,19 @@ describe('SlotPicker', () => {
     expect(screen.getByRole('button', { name: /Close/ })).toBeInTheDocument()
   })
 
-  it('should have smaller buttons no border overlap (px-3 py-2.5 text-xs gap-3)', () => {
+  it('should keep slot buttons compact but still tappable (px-3 text-xs, min-h-11, no scale)', () => {
     const slots = [
       { date: '2026-07-20', start: '2026-07-20T13:00:00Z', end: '2026-07-20T13:30:00Z', available: true },
     ] as any
     render(<SlotPicker date="2026-07-20" slots={slots} onSlotSelect={vi.fn()} slotMinutes={30} />)
     const btn = screen.getByRole('button', { name: /9:00 – 9:30 AM/ })
-    // Smaller buttons per user request make button itself smaller
+    // Compact per the original request — small text, tight horizontal padding, no
+    // scale transform that would let a label overlap the border.
     expect(btn.className).toContain('px-3')
-    expect(btn.className).toContain('py-2.5')
     expect(btn.className).toContain('text-xs')
     expect(btn.className).not.toContain('scale-')
+    // py-2.5 rendered these 34px tall. Height now comes from min-h-11 so the target
+    // clears 44px on a phone; the compactness above is unchanged.
+    expect(btn.className).toContain('min-h-11')
   })
 })

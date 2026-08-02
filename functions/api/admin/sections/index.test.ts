@@ -113,6 +113,22 @@ describe('POST /api/admin/sections — create new section', () => {
     expect(json.sort_order).toBe(1) // max 0 +1
   })
 
+  it('starts a new section unpublished, as a new item does', async () => {
+    // Creating a section used to publish an empty "Services coming soon" band to the
+    // live site before the owner had typed anything.
+    const { onRequestPost } = await import('./index')
+    const req = mockRequest('POST', 'http://localhost/api/admin/sections', { type: 'cards-grid', heading: 'Services' })
+    const res = await onRequestPost({ request: req, env: { ENVIRONMENT: 'local', DB: mockD1 } as any } as any)
+    expect((await res.json() as any).is_visible).toBe(0)
+  })
+
+  it('still honours an explicit is_visible', async () => {
+    const { onRequestPost } = await import('./index')
+    const req = mockRequest('POST', 'http://localhost/api/admin/sections', { type: 'cards-grid', heading: 'Services', is_visible: 1 })
+    const res = await onRequestPost({ request: req, env: { ENVIRONMENT: 'local', DB: mockD1 } as any } as any)
+    expect((await res.json() as any).is_visible).toBe(1)
+  })
+
   it('allows JWT prod', async () => {
     const token = makeMockJwt('admin@example.com')
     const { onRequestPost } = await import('./index')

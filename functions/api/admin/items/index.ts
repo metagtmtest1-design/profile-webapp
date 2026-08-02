@@ -64,6 +64,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const link_url = body?.link_url ?? null
     const link_text = body?.link_text ?? null
     const author = body?.author ?? null
+    const image_alt = body?.image_alt ?? null
+    // A new testimonial has to start somewhere, and 5 is what the owner is most likely
+    // to be quoting; every other section type has no use for a rating.
+    const rating = body?.rating ?? (section.type === 'testimonials' ? 5 : null)
 
     // Unpublished by default: a brand-new item is empty, and the public renderer would
     // otherwise show a card with five stars and no quote the instant the owner clicks Add.
@@ -71,9 +75,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     await db
       .prepare(
-        'INSERT INTO section_items (id, section_id, title, body, image_url, icon, link_url, link_text, author, sort_order, is_visible) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO section_items (id, section_id, title, body, image_url, icon, link_url, link_text, author, rating, image_alt, sort_order, is_visible) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       )
-      .bind(id, sectionId, title, itemBody, image_url, icon, link_url, link_text, author, nextOrder, is_visible)
+      .bind(id, sectionId, title, itemBody, image_url, icon, link_url, link_text, author, rating, image_alt, nextOrder, is_visible)
       .run()
 
     const created = await db.prepare('SELECT * FROM section_items WHERE id = ?').bind(id).first()

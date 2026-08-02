@@ -66,8 +66,17 @@ function formatDayShort(date: Date): { dow: string; day: string; month: string; 
 export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday = true, slotMinutes = 30 }: CalendarViewProps) {
   const { weeks, selectableSet } = getCalendarGrid(excludeToday)
 
+  // The badge used to read a flat "Booking opens from tomorrow". On a Friday or a
+  // Saturday tomorrow is a disabled weekend cell in the very same card, so the badge
+  // contradicted the grid two days in seven. Naming the first day that actually has
+  // slots is both correct every day and more useful than "tomorrow" on any of them.
+  const firstOpenDay = weeks
+    .flat()
+    .filter((d) => selectableSet.has(toDateStr(d)) && ![0, 6].includes(d.getUTCDay()))
+    .find((d) => (grouped[toDateStr(d)] || []).some((s) => s.available))
+
   return (
-    <div className="card rounded-2xl p-4 sm:p-6 md:p-8 bg-white shadow-sm w-full">
+    <div className="card rounded-2xl p-3 sm:p-6 md:p-8 bg-white shadow-sm w-full">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div>
           <h3 className="text-xl font-black tracking-tight" style={{ fontFamily: 'Playfair Display, serif' }}>
@@ -77,9 +86,9 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
             Pick a weekday in the next two weeks · {slotMinutes}-minute meetings · times shown in {TIMEZONE_LABEL}
           </p>
         </div>
-        {excludeToday && (
+        {excludeToday && firstOpenDay && (
           <span className="px-4 py-2 rounded-full bg-amber-50 border border-amber-200 text-xs text-amber-700 leading-none">
-            Booking opens from tomorrow
+            First opening: {firstOpenDay.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' })}
           </span>
         )}
       </div>
@@ -120,7 +129,7 @@ export function CalendarView({ grouped, selectedDate, onDateSelect, excludeToday
                     ${isWeekend ? 'bg-gray-50 text-gray-400 border-gray-100 opacity-60' : ''}
                     ${isOutsideSelectable ? 'bg-white text-gray-300 border-gray-100 opacity-40' : ''}
                     ${!isWeekend && !isOutsideSelectable && !hasAvailability ? 'bg-gray-50 text-gray-400 border-gray-100 opacity-60' : ''}
-                    ${hasAvailability && isSelectable && !isSelected ? 'bg-white border-slate-200 hover:border-slate-900 hover:shadow-md' : ''}
+                    ${hasAvailability && isSelectable && !isSelected ? 'bg-white border-slate-500 hover:border-slate-900 hover:shadow-md' : ''}
                     ${isSelected ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]' : ''}
                     ${!isSelectable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                 >

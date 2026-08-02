@@ -4,6 +4,7 @@
  *        node scripts/e2e-admin-upload.mjs
  */
 import { chromium } from 'playwright'
+import { HERO_PNG } from '/app/scripts/lib/testPng.mjs'
 import { writeFileSync, mkdirSync } from 'node:fs'
 
 const BASE = process.env.BASE_URL || 'http://host.docker.internal:5173'
@@ -11,10 +12,9 @@ const OUT = '/app/tmp-e2e'
 mkdirSync(OUT, { recursive: true })
 
 // 8×8 red PNG
-const PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP4z8CAFWEXHbQSACj/P8Fu7N9hAAAAAElFTkSuQmCC',
-  'base64',
-)
+// A real 1200x900 PNG. An 8x8 fixture is smaller than any slot the site renders, and
+// the uploader now refuses undersized images for exactly that reason.
+const PNG = HERO_PNG
 
 const results = []
 const record = (name, pass, detail = '') => {

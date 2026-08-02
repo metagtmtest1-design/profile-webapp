@@ -1,4 +1,5 @@
 import { safeParseConfig, orderBySort, filterVisible, type Page, type Section, type SectionItem } from '../../_lib/content'
+import { publicSeedFallback } from '../../_lib/seedFallback'
 
 export interface Env {
   DB?: {
@@ -71,6 +72,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env }) => {
         slug: page.slug,
         title: page.title,
         meta_description: page.meta_description,
+        // Drives the header wordmark and the footer blurb. Hardcoded as "Portfolio"
+        // in three components until the owner was given a field for it.
+        site_name: (page as any).site_name ?? null,
+        footer_tagline: (page as any).footer_tagline ?? null,
         sort_order: page.sort_order,
         is_published: page.is_published,
       },
@@ -93,108 +98,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env }) => {
     // Fallback for local dev when Miniflare D1 empty (pages dev persistence quirk) — return seed same as 0002_seed.sql
     // Remote will have real D1 via --remote migrations, so fallback only for local
     if (isLocalNoTable && slug === 'home') {
-      const fallback = {
-        page: {
-          id: 'page_home',
-          slug: 'home',
-          title: 'Jane Doe — Designer & Developer',
-          meta_description: 'Portfolio of Jane Doe — branding, design, and development services',
-          sort_order: 0,
-          is_published: 1,
-        },
-        sections: [
-          {
-            id: 'sec_hero',
-            page_id: 'page_home',
-            type: 'hero',
-            heading: 'Hi, I am Jane — Designer & Developer',
-            subheading: 'Crafting brand identities and digital experiences that inspire',
-            sort_order: 0,
-            config: { theme: 'light' },
-            is_visible: 1,
-            items: [
-              {
-                id: 'item_hero_1',
-                section_id: 'sec_hero',
-                title: 'Welcome to My Portfolio',
-                body: 'I help startups build memorable brands and intuitive digital products. Based in San Francisco, working globally.',
-                image_url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=1200&auto=format&fit=crop',
-                link_url: '/#services',
-                link_text: 'Explore Services',
-                sort_order: 0,
-                is_visible: 1,
-              },
-            ],
-          },
-          {
-            id: 'sec_services',
-            page_id: 'page_home',
-            type: 'cards-grid',
-            heading: 'Branding & More Services',
-            subheading: 'What I can do for you',
-            sort_order: 1,
-            config: { columns: 3 },
-            is_visible: 1,
-            items: [
-              { id: 'item_svc_1', section_id: 'sec_services', title: 'Brand Strategy', body: 'Define your brand voice, positioning, and story', icon: '🎯', sort_order: 0, is_visible: 1 },
-              { id: 'item_svc_2', section_id: 'sec_services', title: 'Logo Design', body: 'Memorable marks', icon: '✨', sort_order: 1, is_visible: 1 },
-              { id: 'item_svc_3', section_id: 'sec_services', title: 'Web Design', body: 'Clean, responsive websites', icon: '💻', sort_order: 2, is_visible: 1 },
-              { id: 'item_svc_4', section_id: 'sec_services', title: 'Illustration', body: 'Custom illustrations', icon: '🎨', sort_order: 3, is_visible: 1 },
-              { id: 'item_svc_5', section_id: 'sec_services', title: 'Art Direction', body: 'Creative direction', icon: '📸', sort_order: 4, is_visible: 1 },
-              { id: 'item_svc_6', section_id: 'sec_services', title: 'Consulting', body: '1:1 sessions', icon: '💡', sort_order: 5, is_visible: 1 },
-            ],
-          },
-          {
-            id: 'sec_about',
-            page_id: 'page_home',
-            type: 'text-block',
-            heading: 'About Me',
-            subheading: 'Passion for design, 10 years experience',
-            sort_order: 2,
-            config: { image_position: 'left' },
-            is_visible: 1,
-            items: [
-              { id: 'item_about_1', section_id: 'sec_about', title: 'Jane Doe', body: 'I’m a brand designer and front-end developer with 10+ years experience...', image_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400', author: 'Senior Designer — 10 yrs', sort_order: 0, is_visible: 1 },
-            ],
-          },
-          {
-            id: 'sec_testimonials',
-            page_id: 'page_home',
-            type: 'testimonials',
-            heading: 'Happy Clients Say',
-            sort_order: 3,
-            config: {},
-            is_visible: 1,
-            items: [
-              { id: 'item_test_1', section_id: 'sec_testimonials', title: 'Startup Founder', body: 'Jane transformed our brand. Investors immediately got who we are.', author: 'John Smith — CEO, BaseAI', sort_order: 0, is_visible: 1 },
-              { id: 'item_test_2', section_id: 'sec_testimonials', title: 'Product Lead', body: 'Best collaboration ever. She shipped our entire design system in 3 weeks.', author: 'Alice Johnson — Product, Loom', sort_order: 1, is_visible: 1 },
-            ],
-          },
-          {
-            id: 'sec_cta',
-            page_id: 'page_home',
-            type: 'cta-banner',
-            heading: 'Ready to start your project?',
-            subheading: 'Let’s talk about your ideas',
-            sort_order: 4,
-            config: {},
-            is_visible: 1,
-            items: [{ id: 'item_cta_1', section_id: 'sec_cta', title: 'Let’s build something great together', body: 'Available for new projects in Q3. Book a 30-min intro call.', link_url: '/#calendar', link_text: 'Book a Call', sort_order: 0, is_visible: 1 }],
-          },
-          {
-            id: 'sec_gallery',
-            page_id: 'page_home',
-            type: 'image-gallery',
-            heading: 'My Work — Selected Projects',
-            sort_order: 5,
-            config: { columns: 3 },
-            is_visible: 1,
-            items: [
-              { id: 'item_gal_1', section_id: 'sec_gallery', title: 'BaseAI Brand', image_url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600', sort_order: 0, is_visible: 1 },
-            ],
-          },
-        ],
-      }
+      // Kept in functions/_lib/seedFallback.ts so it can be diffed against the migrations
+      // by a test — as an inline literal it silently drifted out of step with the seed.
+      const fallback = publicSeedFallback()
       return new Response(JSON.stringify(fallback), {
         status: 200,
         headers: {

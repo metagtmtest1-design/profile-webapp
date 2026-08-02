@@ -119,8 +119,14 @@ export function ManageBookings() {
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = email.trim().toLowerCase()
-    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setError('Invalid email format')
+    // "Invalid email format" for an empty box was wrong twice over: nothing was entered,
+    // so nothing is malformed, and it does not say what to do.
+    if (!trimmed) {
+      setError('Enter the email address you booked with.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError("That does not look like an email address — check for a typo.")
       return
     }
     if (!turnstileToken) {
@@ -183,9 +189,9 @@ export function ManageBookings() {
   }
 
   return (
-    <section className="py-20 border-t bg-white">
+    <section className="py-20 lg:py-24 border-t bg-white">
       <div className="mx-auto max-w-3xl px-6">
-        <h2 className="font-black text-3xl tracking-tight" style={{ fontFamily: 'Playfair Display, serif' }}>
+        <h2 className="font-black text-3xl lg:text-4xl tracking-tight" style={{ fontFamily: 'Playfair Display, serif' }}>
           Manage bookings
         </h2>
         <p className="text-sm text-slate-600 mt-2">
@@ -195,7 +201,7 @@ export function ManageBookings() {
         <form onSubmit={handleLookup} className="card rounded-2xl p-6 mt-6 space-y-4">
           <div>
             <label htmlFor="manage-bookings-email" className="label text-sm font-medium">Email address</label>
-            <input id="manage-bookings-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="input w-full px-4 py-2.5 border rounded-xl text-sm mt-1" />
+            <input id="manage-bookings-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="input w-full px-4 py-2.5 border border-slate-500 rounded-xl text-sm mt-1" />
           </div>
 
           {/* Hidden unless Cloudflare asks the visitor to act — see BookingForm. */}
@@ -210,7 +216,7 @@ export function ManageBookings() {
             </div>
           )}
 
-          <button type="submit" disabled={loading || !turnstileToken} className="btn-primary rounded-full w-full justify-center px-8 py-3 text-sm font-semibold leading-none disabled:opacity-50">
+          <button type="submit" disabled={loading || !turnstileToken} className="btn-primary rounded-full w-full justify-center px-8 min-h-11 text-sm font-semibold leading-none disabled:opacity-50">
             {loading ? 'Looking up…' : 'Find my bookings'}
           </button>
           {/* Says why the button is dim rather than putting a machine state
@@ -241,7 +247,7 @@ export function ManageBookings() {
                       </span>
                     </div>
                     <div className="flex gap-2 flex-wrap">
-                      <button onClick={() => handleCancel(b)} disabled={cancellingId === b.id} className="px-5 py-2.5 bg-white border border-red-200 text-red-700 rounded-full text-xs font-semibold hover:bg-red-50 disabled:opacity-50 leading-none">
+                      <button onClick={() => handleCancel(b)} disabled={cancellingId === b.id} className="px-5 py-2.5 bg-white border border-red-600 text-red-700 rounded-full text-xs font-semibold hover:bg-red-50 disabled:opacity-50 leading-none">
                         {cancellingId === b.id ? 'Cancelling…' : 'Cancel meeting'}
                       </button>
                     </div>

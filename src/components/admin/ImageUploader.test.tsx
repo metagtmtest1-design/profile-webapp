@@ -101,6 +101,46 @@ describe('ImageUploader — PNG if ≤1MB else WebP within 1MB', () => {
     expect(onError).toHaveBeenCalled()
   })
 
+  // An 8x8 favicon uploaded into the hero slot was accepted silently, and `object-cover`
+  // blew its 64 pixels up to roughly 720x540 — the page's first impression was a solid
+  // colour block that looked like a rendering failure.
+  const uploadTiny = async (variant: 'card' | 'hero', width: number) => {
+    mockResizeImage.mockResolvedValue({
+      blob: new Blob([new Uint8Array(89)], { type: 'image/png' }),
+      format: 'png',
+      width,
+      height: width,
+      originalSize: 89,
+      finalSize: 89,
+    })
+    const onError = vi.fn()
+    render(<ImageUploader variant={variant} onUploadComplete={vi.fn()} onError={onError} />)
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [makeFile('favicon.png', 89, 'image/png')] } })
+    return onError
+  }
+
+  it('refuses an image too small for the hero slot instead of publishing a colour block', async () => {
+    const onError = await uploadTiny('hero', 8)
+    await waitFor(() => expect(screen.getByText(/only 8px wide/i)).toBeInTheDocument())
+    expect(screen.getByText(/at least 640px wide/i)).toBeInTheDocument()
+    expect(onError).toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('holds card images to a lower bar than hero images', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: async () => ({ key: 'portfolio/a.png', url: '/api/images/portfolio/a.png', size: 89, format: 'png' }) } as any)
+    const onError = await uploadTiny('card', 400)
+    await waitFor(() => expect(mockFetch).toHaveBeenCalled())
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('rejects a 300px image in a card slot', async () => {
+    await uploadTiny('card', 300)
+    await waitFor(() => expect(screen.getByText(/at least 320px wide/i)).toBeInTheDocument())
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it('resizes on client and uploads PNG when PNG ≤1MB (lossless)', async () => {
     mockFetch.mockResolvedValue({
       ok: true,

@@ -294,16 +294,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     try {
       const bookingId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
       console.log(`!!! BOOKING_INSERT id=${bookingId} contactId=${contactId} eventId=${calendarEventId} source=${source}`)
-      const insertBookingStmt = db.prepare('INSERT INTO bookings (id, contact_id, calendar_event_id, purpose, cancel_token, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime("now"))')
-      await insertBookingStmt.bind(bookingId, contactId!, calendarEventId, purpose || null, cancelToken, 'confirmed').run()
+      // slot_start/slot_end are what "Manage bookings" shows the visitor. Without them
+      // the lookup fell back to created_at and named the wrong meeting.
+      const insertBookingStmt = db.prepare('INSERT INTO bookings (id, contact_id, calendar_event_id, purpose, cancel_token, status, slot_start, slot_end, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime("now"))')
+      await insertBookingStmt.bind(bookingId, contactId!, calendarEventId, purpose || null, cancelToken, 'confirmed', slot.start, slot.end).run()
       console.log('!!! BOOKING_INSERT_OK')
     } catch (e: any) {
       console.log(`!!! BOOKING_INSERT_ERROR ${e?.message} fallback`)
       // Fallback for test D1 that may have different prepare shapes
       try {
-        const stmt = db.prepare('INSERT INTO bookings (id, contact_id, calendar_event_id, purpose, cancel_token, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
+        const stmt = db.prepare('INSERT INTO bookings (id, contact_id, calendar_event_id, purpose, cancel_token, status, slot_start, slot_end) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
         const bookingId = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
-        await stmt.bind(bookingId, contactId!, calendarEventId, purpose || null, cancelToken, 'confirmed').run().catch(() => {})
+        await stmt.bind(bookingId, contactId!, calendarEventId, purpose || null, cancelToken, 'confirmed', slot.start, slot.end).run().catch(() => {})
       } catch {}
     }
 

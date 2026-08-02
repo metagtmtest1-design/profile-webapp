@@ -19,6 +19,10 @@ export interface Page {
   slug: string
   title: string
   meta_description?: string | null
+  /** Wordmark in the header and the footer brand. */
+  site_name?: string | null
+  /** The sentence under the footer brand. */
+  footer_tagline?: string | null
   sort_order: number
   is_published: number
 }
@@ -33,6 +37,10 @@ export interface SectionItem {
   link_url?: string | null
   link_text?: string | null
   author?: string | null
+  /** Testimonials only. NULL means "never set" and renders as 5. */
+  rating?: number | null
+  /** Owner-written description of image_url, for screen readers. */
+  image_alt?: string | null
   sort_order: number
   is_visible: number
 }

@@ -33,10 +33,25 @@ describe('CalendarView', () => {
     })
   })
 
-  it('should support excludeToday option not taking any schedule today', () => {
-    const grouped = {} as any
+  it('names the first day that actually has slots, not a flat "tomorrow"', () => {
+    // The old badge always read "Booking opens from tomorrow". Booked on a Friday or a
+    // Saturday, tomorrow is a disabled weekend cell in the same card.
+    const dayAfterTomorrow = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+    // Skip forward to a weekday so the fixture describes a day the grid can select.
+    while ([0, 6].includes(dayAfterTomorrow.getUTCDay())) dayAfterTomorrow.setUTCDate(dayAfterTomorrow.getUTCDate() + 1)
+    const dateStr = dayAfterTomorrow.toISOString().slice(0, 10)
+    const grouped = { [dateStr]: [{ date: dateStr, start: `${dateStr}T13:00:00Z`, end: `${dateStr}T13:30:00Z`, available: true }] } as any
+
     render(<CalendarView grouped={grouped} selectedDate={null} onDateSelect={vi.fn()} excludeToday={true} slotMinutes={30} />)
-    expect(screen.getByText(/Booking opens from tomorrow/i)).toBeInTheDocument()
+
+    const expected = dayAfterTomorrow.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' })
+    expect(screen.getByText(`First opening: ${expected}`)).toBeInTheDocument()
+    expect(screen.queryByText(/Booking opens from tomorrow/i)).not.toBeInTheDocument()
+  })
+
+  it('shows no opening badge at all when nothing is bookable', () => {
+    render(<CalendarView grouped={{} as any} selectedDate={null} onDateSelect={vi.fn()} excludeToday={true} slotMinutes={30} />)
+    expect(screen.queryByText(/First opening/i)).not.toBeInTheDocument()
   })
 
   it('should highlight dates with available slots and selected state', () => {

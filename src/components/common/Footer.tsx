@@ -7,6 +7,10 @@ export function Footer() {
   // hiding a section left a link that scrolled nowhere.
   const { data } = useContent('home')
   const sections = data?.sections || []
+  // Owner-editable via the "Your site" card in /admin. These were literals, so the
+  // brand and the copyright line named "Portfolio" on somebody else's website.
+  const siteName = data?.page?.site_name?.trim() || 'Portfolio'
+  const tagline = data?.page?.footer_tagline?.trim() || 'Book a free intro call to get started.'
   const has = (type: string) => sections.some((s: any) => s.type === type)
   const services = (sections.find((s: any) => s.type === 'cards-grid')?.items || [])
     .map((i: any) => i.title)
@@ -14,6 +18,7 @@ export function Footer() {
 
   const companyLinks = [
     { label: 'About', href: '#about', show: has('text-block') },
+    { label: 'Work', href: '#work', show: has('image-gallery') },
     { label: 'Testimonials', href: '#testimonials', show: has('testimonials') },
   ].filter((l) => l.show)
 
@@ -22,8 +27,8 @@ export function Footer() {
       <div className="max-w-5xl mx-auto px-6 py-12">
         <div className="flex flex-col lg:flex-row justify-between gap-10 text-sm">
           <div className="max-w-sm">
-            <div className="font-black text-2xl tracking-tight mb-3" style={{ fontFamily: 'Playfair Display, serif' }}>Portfolio</div>
-            <p className="text-gray-600 leading-relaxed">Strategic brand design and development for ambitious teams. Book a free intro call to start.</p>
+            <div className="font-black text-2xl tracking-tight mb-3" style={{ fontFamily: 'Playfair Display, serif' }}>{siteName}</div>
+            <p className="text-gray-600 leading-relaxed">{tagline}</p>
           </div>
           {services.length > 0 && (
             <div>
@@ -52,7 +57,7 @@ export function Footer() {
           </div>
         </div>
         <div className="border-t mt-10 pt-6 flex flex-col sm:flex-row justify-between gap-3 text-xs text-gray-500">
-          <div>© {new Date().getFullYear()} Portfolio. All rights reserved.</div>
+          <div>© {new Date().getFullYear()} {siteName}. All rights reserved.</div>
           <div>Remote-first</div>
         </div>
       </div>

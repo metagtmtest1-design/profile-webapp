@@ -15,7 +15,7 @@ export function CTABanner({ section, items, anchors }: CTABannerProps) {
   const ctaHref = ctaDead ? '#calendar' : first?.link_url
   const ctaText = ctaDead ? 'Book a free call' : first?.link_text || 'Book a free call'
   return (
-    <section className="py-20 bg-slate-900 text-white relative overflow-hidden">
+    <section className="py-20 lg:py-24 bg-slate-900 text-white relative overflow-hidden">
       <div className="absolute inset-0 opacity-30" aria-hidden="true" style={{ background: 'radial-gradient(800px 400px at 20% 10%, #334155 0%, transparent 60%), radial-gradient(600px 300px at 80% 90%, #1e293b 0%, transparent 50%)' }}></div>
       <div className="max-w-5xl mx-auto px-6 text-center relative">
         {/* Heading, one supporting line, one button. This banner used to stack an

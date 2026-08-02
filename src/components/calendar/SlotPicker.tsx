@@ -67,7 +67,7 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
           <div className="text-xs text-gray-500 mt-1">{availableCount} times available · {slotMinutes} minutes each</div>
         </div>
         {onClose && (
-          <button onClick={onClose} aria-label="Close time slots" className="w-9 h-9 rounded-full border bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm focus:outline-none focus:ring-2">
+          <button onClick={onClose} aria-label="Close time slots" className="w-11 h-11 rounded-full border border-slate-500 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm focus:outline-none focus:ring-2">
             ✕
           </button>
         )}
@@ -92,7 +92,7 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
                   <button
                     key={slot.start}
                     onClick={() => onSlotSelect(slot)}
-                    className="px-3 py-2.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-medium hover:bg-slate-900 hover:text-white hover:border-slate-900 hover:z-10 relative focus:outline-none focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:ring-slate-900 transition-colors leading-none truncate"
+                    className="px-3 min-h-11 inline-flex items-center justify-center rounded-full border border-slate-500 bg-white text-slate-900 text-xs font-medium hover:bg-slate-900 hover:text-white hover:border-slate-900 hover:z-10 relative focus:outline-none focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:ring-slate-900 transition-colors leading-none truncate"
                   >
                     {formatSlotInterval(slot.start, slot.end)}
                   </button>
@@ -108,7 +108,7 @@ export function SlotPicker({ date, slots, onSlotSelect, onClose, slotMinutes = 3
                   <button
                     key={slot.start}
                     onClick={() => onSlotSelect(slot)}
-                    className="px-3 py-2.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-medium hover:bg-slate-900 hover:text-white hover:border-slate-900 hover:z-10 relative focus:outline-none focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:ring-slate-900 transition-colors leading-none truncate"
+                    className="px-3 min-h-11 inline-flex items-center justify-center rounded-full border border-slate-500 bg-white text-slate-900 text-xs font-medium hover:bg-slate-900 hover:text-white hover:border-slate-900 hover:z-10 relative focus:outline-none focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:ring-slate-900 transition-colors leading-none truncate"
                   >
                     {formatSlotInterval(slot.start, slot.end)}
                   </button>

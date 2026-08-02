@@ -8,6 +8,13 @@
   --muted-light: #f8fafc;
   --border: #e2e8f0;
   --border-strong: #cbd5e1;
+  /* Interactive controls carry their own boundary. WCAG 2.1 SC 1.4.11 asks for 3:1
+     against the backdrop and --border manages only 1.2:1 on white, which is what made
+     outlined buttons — Cancel, Refresh, Up/Down — read as bare text. These clear it at
+     ~4.8:1. Containers, cards and dividers keep the lighter --border: the rule governs
+     controls, not decoration, and darkening every panel edge would wreck the design. */
+  --border-control: #64748b;
+  --border-danger: #dc2626;
   --accent: #0f172a;
   --accent-hover: #1e293b;
   --accent-light: #f1f5f9;
@@ -77,6 +84,8 @@ a:hover { color: inherit; }
 .bg-gray-100 { background: #f1f5f9; }
 .bg-gray-200 { background: #e2e8f0; }
 .bg-slate-50 { background: #f8fafc; }
+/* The hero band's flat tone, for the admin preview — see .hero below. */
+.bg-hero { background: #fcfcf9; }
 .bg-slate-900 { background: #0f172a; }
 .bg-black { background: #0f172a; }
 .bg-green-50 { background: #f0fdf4; }
@@ -151,6 +160,7 @@ a:hover { color: inherit; }
 .py-16 { padding-top: 4rem; padding-bottom: 4rem; }
 .py-20 { padding-top: 5rem; padding-bottom: 5rem; }
 .py-24 { padding-top: 6rem; padding-bottom: 6rem; }
+.pt-1 { padding-top: 0.25rem; }
 .pt-2 { padding-top: 0.5rem; }
 .pt-6 { padding-top: 1.5rem; }
 .mb-1 { margin-bottom: 0.25rem; }
@@ -173,6 +183,7 @@ a:hover { color: inherit; }
 .max-w-3xl { max-width: 48rem; }
 .max-w-2xl { max-width: 42rem; }
 .max-w-xl { max-width: 36rem; }
+.max-w-\[10rem\] { max-width: 10rem; }
 .max-w-full { max-width: 100%; }
 .w-fit { width: fit-content; }
 .opacity-75 { opacity: 0.75; }
@@ -185,7 +196,10 @@ a:hover { color: inherit; }
 .w-8 { width: 2rem; }
 .w-9 { width: 2.25rem; }
 .w-10 { width: 2.5rem; }
+.w-11 { width: 2.75rem; }
+.h-11 { height: 2.75rem; }
 .w-12 { width: 3rem; }
+.w-44 { width: 11rem; }
 .w-14 { width: 3.5rem; }
 .h-1\.5 { height: 0.375rem; }
 .h-8 { height: 2rem; }
@@ -210,6 +224,7 @@ a:hover { color: inherit; }
 .justify-end { justify-content: flex-end; }
 .items-center { align-items: center; }
 .items-start { align-items: flex-start; }
+.gap-0\.5 { gap: 0.125rem; }
 .gap-1 { gap: 0.25rem; }
 .gap-3 { gap: 0.75rem; }
 .gap-4 { gap: 1rem; }
@@ -249,6 +264,8 @@ a:hover { color: inherit; }
 .inline-block { display: inline-block; }
 .sticky { position: sticky; }
 .top-0 { top: 0; }
+.top-full { top: 100%; }
+.right-0 { right: 0; }
 .z-10 { z-index: 10; }
 .-z-10 { z-index: -10; }
 .relative { position: relative; }
@@ -443,7 +460,9 @@ section { scroll-margin-top: 72px; }
 .backdrop-blur { backdrop-filter: blur(12px) saturate(180%); }
 .z-20 { z-index: 20; }
 .z-40 { z-index: 40; }
+.top-3 { top: 0.75rem; }
 .top-4 { top: 1rem; }
+.right-3 { right: 0.75rem; }
 .right-4 { right: 1rem; }
 .left-4 { left: 1rem; }
 .-bottom-4 { bottom: -1rem; }
@@ -456,6 +475,7 @@ section { scroll-margin-top: 72px; }
 .gap-1\.5 { gap: 0.375rem; }
 .gap-2 { gap: 0.5rem; }
 .gap-5 { gap: 1.25rem; }
+.mt-auto { margin-top: auto; }
 .mt-0\.5 { margin-top: 0.125rem; }
 .mt-1 { margin-top: 0.25rem; }
 .mt-5 { margin-top: 1.25rem; }
@@ -522,6 +542,7 @@ section { scroll-margin-top: 72px; }
 /* Text colors */
 .text-red-600 { color: #dc2626; }
 .text-green-700 { color: #15803d; }
+.text-green-800 { color: #166534; }
 /* Star rating carries meaning — #fbbf24 was 1.6:1, this clears AA on slate-50. */
 .text-amber-400 { color: #b45309; }
 .text-amber-700 { color: #b45309; }
@@ -539,6 +560,10 @@ section { scroll-margin-top: 72px; }
 .border-transparent { border-color: transparent; }
 .border-black { border-color: #0f172a; }
 .border-slate-300 { border-color: var(--border-strong); }
+/* The control-boundary pair — see --border-control. Use these on buttons, inputs and
+   other operable elements, not on cards or dividers. */
+.border-slate-500 { border-color: var(--border-control); }
+.border-red-600 { border-color: var(--border-danger); }
 .border-slate-800 { border-color: #1e293b; }
 .border-red-200 { border-color: #fecaca; }
 .border-green-200 { border-color: #bbf7d0; }
@@ -570,7 +595,9 @@ section { scroll-margin-top: 72px; }
 .opacity-0 { opacity: 0; }
 .opacity-30 { opacity: 0.3; }
 .opacity-40 { opacity: 0.4; }
+.group:hover .group-hover\:opacity-0 { opacity: 0; }
 .opacity-60 { opacity: 0.6; }
+.opacity-70 { opacity: 0.7; }
 .opacity-100 { opacity: 1; }
 .cursor-not-allowed { cursor: not-allowed; }
 .scale-\[1\.02\] { transform: scale(1.02); }
@@ -590,6 +617,7 @@ section { scroll-margin-top: 72px; }
 .hover\:bg-black:hover { background: #0f172a; }
 .hover\:bg-gray-800:hover { background: #1e293b; }
 .hover\:bg-slate-50:hover { background: #f8fafc; }
+.hover\:bg-amber-50:hover { background: #fffbeb; }
 .hover\:bg-slate-100:hover { background: #f1f5f9; }
 .hover\:bg-slate-900:hover { background: #0f172a; }
 .hover\:bg-red-50:hover { background: #fef2f2; }
@@ -638,6 +666,7 @@ section { scroll-margin-top: 72px; }
   .sm\:text-\[20px\] { font-size: 20px; }
   .sm\:min-h-\[96px\] { min-height: 96px; }
   .sm\:opacity-0 { opacity: 0; }
+  .sm\:opacity-40 { opacity: 0.4; }
   .group:hover .sm\:group-hover\:opacity-100 { opacity: 1; }
   .group:focus-within .sm\:group-focus-within\:opacity-100 { opacity: 1; }
 }

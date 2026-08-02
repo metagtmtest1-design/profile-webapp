@@ -18,6 +18,12 @@ export interface ImageUploaderProps {
   onError?: (error: string) => void
 }
 
+/**
+ * Smallest width worth accepting per slot, roughly the CSS width each renders at on a
+ * 1440px screen. Anything narrower is upscaled by `object-cover` and looks broken.
+ */
+export const MIN_WIDTH_BY_VARIANT: Record<'card' | 'hero', number> = { card: 320, hero: 640 }
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
@@ -81,6 +87,19 @@ export function ImageUploader({
       const resized = await resizeImage(file, MAX_DIMENSION, MAX_FILE_SIZE)
 
       debug(`!!! IMAGE_UPLOADER_RESIZED orig=${resized.originalSize} final=${resized.finalSize} format=${resized.format} ${resized.width}x${resized.height} q=${resized.quality}`)
+
+      // An 8x8 favicon uploaded into the hero slot was accepted silently, and `object-cover`
+      // blew its 64 pixels up to roughly 720x540 — the page's first impression was a solid
+      // colour block that looked like a rendering failure. Refuse before it reaches R2:
+      // the upload cannot be undone from the owner's side without another upload.
+      const minWidth = MIN_WIDTH_BY_VARIANT[variant]
+      if (resized.width < minWidth) {
+        const msg = `That image is only ${resized.width}px wide. It would look blurry or blocky at the size this slot displays — please pick one at least ${minWidth}px wide.`
+        setError(msg)
+        onError?.(msg)
+        debug(`!!! IMAGE_UPLOADER_TOO_SMALL ${resized.width}x${resized.height} min=${minWidth}`)
+        return
+      }
 
       // Optimistic local preview — revoke previous blob URL to avoid leak
       try {
@@ -179,7 +198,7 @@ export function ImageUploader({
       type="button"
       onClick={openPicker}
       disabled={uploading}
-      className="px-3.5 py-2 bg-slate-900 text-white rounded-full text-xs font-semibold hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 shrink-0"
+      className="px-3.5 min-h-11 bg-slate-900 text-white rounded-full text-xs font-semibold hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5 shrink-0"
     >
       {uploading ? (
         <>
@@ -245,6 +264,12 @@ export function ImageUploader({
           )}
           {hasImage && (
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition-colors flex items-center justify-center pointer-events-none">
+              {/* A resting badge in the corner, not just a hover overlay: with an image
+                  already in place the tile looked like a plain picture, so nothing told
+                  the owner it could be replaced until they happened to mouse over it. */}
+              <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-white/80 text-slate-900 text-[11px] font-semibold shadow-sm group-hover:opacity-0 transition-opacity inline-flex items-center gap-1">
+                <span aria-hidden>✎</span> Replace
+              </span>
               <span className="px-3 py-1.5 rounded-full bg-white text-slate-900 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
                 Click or drop to replace
               </span>
@@ -268,7 +293,7 @@ export function ImageUploader({
         {...dragProps}
         title="Drag an image here, or use the button"
         className={`border-2 border-dashed rounded-xl p-2 flex flex-wrap gap-2 items-center transition-colors w-fit max-w-full ${
-          dragOver ? 'border-slate-900 bg-slate-50' : 'border-slate-200'
+          dragOver ? 'border-slate-900 bg-slate-50' : 'border-slate-500'
         } ${uploading ? 'opacity-60' : ''}`}
       >
         {/* Preview only — the button below is the single upload control, so screen

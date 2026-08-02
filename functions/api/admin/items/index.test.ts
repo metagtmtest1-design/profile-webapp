@@ -33,8 +33,8 @@ describe('POST /api/admin/items — add an item to a section', () => {
         all: async () => ({ results: mockItems.filter((i) => i.section_id === args[0]) }),
         run: async () => {
           if (sql.includes('INSERT INTO section_items')) {
-            const [id, section_id, title, body, image_url, icon, link_url, link_text, author, sort_order, is_visible] = args
-            mockItems.push({ id, section_id, title, body, image_url, icon, link_url, link_text, author, sort_order, is_visible })
+            const [id, section_id, title, body, image_url, icon, link_url, link_text, author, rating, image_alt, sort_order, is_visible] = args
+            mockItems.push({ id, section_id, title, body, image_url, icon, link_url, link_text, author, rating, image_alt, sort_order, is_visible })
           }
           return { success: true, meta: { changes: 1 } }
         },
@@ -87,6 +87,21 @@ describe('POST /api/admin/items — add an item to a section', () => {
     const req = mockRequest('POST', 'http://localhost/api/admin/items', { sectionId: 'sec_gallery' })
     const res = await onRequestPost({ request: req, env: { ENVIRONMENT: 'local', DB: mockD1 } } as any)
     expect((await res.json() as any).sort_order).toBe(2)
+  })
+
+  it('starts a new testimonial at five stars', async () => {
+    mockSections.push({ id: 'sec_testimonials', page_id: 'page_home', type: 'testimonials', heading: 'Happy Clients' })
+    const { onRequestPost } = await import('./index')
+    const req = mockRequest('POST', 'http://localhost/api/admin/items', { sectionId: 'sec_testimonials' })
+    const res = await onRequestPost({ request: req, env: { ENVIRONMENT: 'local', DB: mockD1 } } as any)
+    expect((await res.json() as any).rating).toBe(5)
+  })
+
+  it('leaves rating null on section types that have no stars', async () => {
+    const { onRequestPost } = await import('./index')
+    const req = mockRequest('POST', 'http://localhost/api/admin/items', { sectionId: 'sec_gallery' })
+    const res = await onRequestPost({ request: req, env: { ENVIRONMENT: 'local', DB: mockD1 } } as any)
+    expect((await res.json() as any).rating).toBeNull()
   })
 
   it('allows a signed-in admin in production', async () => {
