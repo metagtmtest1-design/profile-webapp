@@ -89,7 +89,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     let bookings: any[] = []
     try {
-      const stmt = db.prepare('SELECT id, calendar_event_id, purpose, cancel_token, status, created_at FROM bookings WHERE contact_id = ?1 ORDER BY created_at DESC')
+      const stmt = db.prepare('SELECT id, calendar_event_id, purpose, cancel_token, status, created_at, slot_start, slot_end FROM bookings WHERE contact_id = ?1 ORDER BY slot_start ASC')
       const result = await stmt.bind(contact.id).all()
       bookings = result.results || []
     } catch (e: any) {
@@ -107,16 +107,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const siteUrl = env?.SITE_URL || 'https://profile-webapp.pages.dev'
     const timeZone = env?.TIMEZONE || TIMEZONE
 
+    const now = Date.now()
     const filtered = bookings
       .filter((b: any) => b.status !== 'cancelled')
+      // The empty state says "No upcoming bookings", so a meeting that has already
+      // happened must not be listed with a Cancel button next to it.
+      .filter((b: any) => !b.slot_start || new Date(b.slot_start).getTime() >= now)
       .map((b: any) => {
-        // Try to get slot info — we store purpose but not slot_start in bookings table originally, only calendar_event_id
-        // For bookings created before migration, slot info may not be available, so we try to extract from purpose or return minimal
-        // For new flow, we could have slot_start in pending but bookings doesn't, so we use created_at as fallback
-        // We'll include purpose as is (important per your note)
-        const dateTimeEt = b.created_at
-          ? new Date(b.created_at).toLocaleString('en-US', { timeZone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
-          : 'Scheduled'
+        // slot_start is the meeting time (migration 0007). This used to print created_at
+        // — the moment the form was submitted — so the card named the wrong day and the
+        // cancel confirmation repeated it. Rows predating 0007 have no slot time at all,
+        // and saying so beats printing a plausible wrong one.
+        const dateTimeEt = b.slot_start
+          ? new Date(b.slot_start).toLocaleString('en-US', { timeZone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+          : 'Time not recorded — check your confirmation email'
 
         return {
           id: b.id,
@@ -126,10 +130,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           cancelUrl: `${siteUrl}/api/cancel/${b.cancel_token}`,
           status: b.status,
           createdAt: b.created_at,
+          slotStart: b.slot_start || null,
           dateTime: dateTimeEt,
           meetLink: '', // Meet link not stored in D1 currently, only in email — could be fetched via Google API if needed
         }
       })
+      // Soonest first: the meeting a visitor is most likely to be managing.
+      .sort((a: any, b: any) => (a.slotStart || '').localeCompare(b.slotStart || ''))
 
     console.log(`!!! LOOKUP_RETURN count=${filtered.length}`)
 

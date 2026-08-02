@@ -14,12 +14,14 @@ import { useCalendar } from '../hooks/useCalendar'
 import { generateIcsContent, downloadIcsFile } from '../lib/ics'
 import type { Section } from '../lib/api'
 import { debug } from '../lib/debug'
+import { BOOKING_MESSAGES, isPlaceholderMeetLink } from '../lib/bookingMessages'
 
 /** Which in-page anchor each section type provides, so nothing links to a section that isn't rendered. */
 const ANCHOR_BY_TYPE: Record<string, string> = {
   'cards-grid': 'services',
   'text-block': 'about',
   testimonials: 'testimonials',
+  'image-gallery': 'work',
 }
 
 function renderSection(section: Section, anchors: Set<string>) {
@@ -42,7 +44,7 @@ export function Home() {
   const { grouped, loading: calLoading, error: calError, slotMinutes, excludeToday, refetch: refetchCalendar, removeSlot } = useCalendar(2)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<any>(null)
-  const [bookingResult, setBookingResult] = useState<{ meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any } | null>(null)
+  const [bookingResult, setBookingResult] = useState<{ meetLink: string; dateTime: string; cancelUrl: string; source?: string; gcalError?: string; emailResult?: any; purpose?: string | null } | null>(null)
 
   const selectedSlots = useMemo(() => {
     if (!selectedDate) return []
@@ -141,6 +143,10 @@ export function Home() {
                     slot={selectedSlot}
                     onSuccess={(result) => {
                       debug(`!!! HOME_BOOKING_SUCCESS slot=${selectedSlot.start} removing optimistic + refetching calendar with cache bust`)
+                      // The visitor sees plain-English copy; the vendor's own wording is
+                      // only useful to whoever has to fix the integration.
+                      if (result.gcalError) debug(`!!! HOME_BOOKING_GCAL_ERROR ${result.gcalError}`)
+                      if (result.emailResult && !result.emailResult.success) debug(`!!! HOME_BOOKING_EMAIL_ERROR ${result.emailResult.error}`)
                       setBookingResult(result)
                       // Optimistic removal so slot disappears immediately without reload
                       removeSlot(selectedSlot)
@@ -158,31 +164,40 @@ export function Home() {
                   <div className="card rounded-2xl p-6 bg-green-50 border-green-300 text-center">
                     <h3 className="font-black text-xl mb-3">Meeting Confirmed ✅</h3>
                     <p className="text-sm mb-2">{bookingResult.dateTime}</p>
+                    {bookingResult.purpose && <p className="text-sm mb-2">Purpose: <strong>{bookingResult.purpose}</strong></p>}
                     <p className="text-sm mb-2">Meet: <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="underline">{bookingResult.meetLink}</a></p>
-                    {bookingResult.meetLink.includes('fake-') && (
+                    {/* The vendor's own error string used to be printed here verbatim, so a
+                        delivery failure showed the visitor Resend's developer documentation
+                        and the calendar stub told them to check /api/debug/diag. The raw
+                        text goes to the DEV console instead. */}
+                    {isPlaceholderMeetLink(bookingResult.meetLink) && (
                       <div className="mx-auto max-w-md p-3 border border-amber-300 bg-amber-50 rounded-lg text-xs text-amber-800 mb-3 text-left">
-                        <div className="font-semibold">⚠️ Fake Meet link — stub</div>
-                        <div>Google Calendar secret or permission issue. Check /api/debug/diag</div>
-                        {bookingResult.gcalError && <div className="mt-1 font-mono break-all">{bookingResult.gcalError}</div>}
+                        <div className="font-semibold">{BOOKING_MESSAGES.placeholderMeetLink.heading}</div>
+                        <div>{BOOKING_MESSAGES.placeholderMeetLink.detail}</div>
                       </div>
                     )}
                     {bookingResult.emailResult && !bookingResult.emailResult.success && (
                       <div className="mx-auto max-w-md p-3 border border-orange-300 bg-orange-50 rounded-lg text-xs text-orange-800 mb-3 text-left">
-                        <div className="font-semibold">📧 Email not sent</div>
-                        <div>{bookingResult.emailResult.error}</div>
+                        <div className="font-semibold">{BOOKING_MESSAGES.emailNotSent.heading}</div>
+                        <div>{BOOKING_MESSAGES.emailNotSent.detail}</div>
                       </div>
+                    )}
+                    {/* Saying nothing when the email did go out leaves the visitor
+                        wondering whether to expect one. */}
+                    {bookingResult.emailResult?.success && bookingResult.emailResult.source === 'live' && (
+                      <p className="text-xs text-green-800 mb-3">A confirmation email is on its way.</p>
                     )}
                     <div className="flex gap-3 justify-center flex-wrap">
                       <button onClick={() => { const ics = generateIcsContent({ title: `Meeting — ${bookingResult.dateTime}`, description: `Meet: ${bookingResult.meetLink}\nCancel: ${bookingResult.cancelUrl}`, location: bookingResult.meetLink, start: selectedSlot?.start || new Date().toISOString(), end: selectedSlot?.end || new Date().toISOString(), meetLink: bookingResult.meetLink }); downloadIcsFile(ics, `meeting-${selectedDate}.ics`); }} className="px-6 py-3 bg-slate-900 text-white rounded-full text-sm font-semibold hover:bg-black leading-none">
                         Download invite (.ics)
                       </button>
-                      <a href={bookingResult.cancelUrl} className="px-6 py-3 rounded-full border border-red-200 bg-white text-red-700 text-sm font-semibold hover:bg-red-50 leading-none inline-flex items-center justify-center">
+                      <a href={bookingResult.cancelUrl} className="px-6 py-3 rounded-full border border-red-600 bg-white text-red-700 text-sm font-semibold hover:bg-red-50 leading-none inline-flex items-center justify-center">
                         Cancel meeting
                       </a>
                     </div>
                     <div className="flex gap-3 justify-center flex-wrap mt-4">
                       <button onClick={() => { debug('!!! HOME_BOOK_ANOTHER clear + refetch'); setSelectedDate(null); setSelectedSlot(null); setBookingResult(null); refetchCalendar(); }} className="px-6 py-3 bg-black text-white rounded-full text-sm font-semibold leading-none">Book another</button>
-                      <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="px-6 py-3 bg-white border border-slate-200 rounded-full text-sm font-semibold leading-none inline-flex items-center justify-center">Open Meet →</a>
+                      <a href={bookingResult.meetLink} target="_blank" rel="noopener noreferrer" className="px-6 py-3 bg-white border border-slate-500 rounded-full text-sm font-semibold leading-none inline-flex items-center justify-center">Open Meet →</a>
                     </div>
                   </div>
                 )}

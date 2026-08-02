@@ -17,7 +17,7 @@ export function TextBlock({ section, items, anchors }: TextBlockProps) {
         <div className="flex-1 w-full">
           <div className="relative">
             {first?.image_url ? (
-              <SafeImage src={first.image_url} alt={first.title || 'About portrait'} className="w-full rounded-2xl object-cover shadow-md aspect-[4/3] h-auto" loading="lazy" decoding="async" />
+              <SafeImage src={first.image_url} alt={first.image_alt || first.title || 'About portrait'} className="w-full rounded-2xl object-cover shadow-md aspect-[4/3] h-auto" loading="lazy" decoding="async" />
             ) : (
               <div className="w-full aspect-[4/3] bg-white border rounded-2xl flex items-center justify-center text-gray-400">Portrait</div>
             )}

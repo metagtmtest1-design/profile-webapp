@@ -73,7 +73,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     const id = crypto.randomUUID()
     const config = body?.config ? (typeof body.config === 'string' ? body.config : JSON.stringify(body.config)) : '{}'
-    const is_visible = body?.is_visible !== undefined ? body.is_visible : 1
+    // Unpublished by default, matching new items. Creating a section used to publish an
+    // empty band reading "Services coming soon" to the live site before the owner had
+    // typed anything, while adding an item to it correctly stayed hidden — the two halves
+    // of the same mental model disagreed.
+    const is_visible = body?.is_visible !== undefined ? body.is_visible : 0
 
     const insertStmt = db.prepare('INSERT INTO sections (id, page_id, type, heading, subheading, sort_order, config, is_visible) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, page.id, type, heading, subheading, nextOrder, config, is_visible)
     await insertStmt.run()

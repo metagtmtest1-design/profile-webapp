@@ -25,10 +25,24 @@ export interface AdminItem {
   link_url?: string
   link_text?: string
   author?: string
+  /** Testimonials only. NULL means "never set" and renders as 5. */
+  rating?: number | null
+  /** Owner-written description of image_url, for screen readers. */
+  image_alt?: string | null
+}
+
+export interface AdminPage {
+  id: string
+  slug: string
+  title: string
+  meta_description?: string | null
+  site_name?: string | null
+  footer_tagline?: string | null
 }
 
 export interface UseAdminContentReturn {
   sections: AdminSection[]
+  page: AdminPage | null
   loading: boolean
   error: string | null
   updateSection: (id: string, patch: Partial<AdminSection>) => Promise<void>
@@ -39,11 +53,13 @@ export interface UseAdminContentReturn {
   deleteSection: (id: string) => Promise<void>
   reorderSections: (orderedIds: string[]) => Promise<void>
   reorderItems: (sectionId: string, orderedIds: string[]) => Promise<void>
+  updatePage: (patch: Partial<AdminPage>) => Promise<void>
   refetch: () => Promise<void>
 }
 
 export function useAdminContent(): UseAdminContentReturn {
   const [sections, setSections] = useState<AdminSection[]>([])
+  const [page, setPage] = useState<AdminPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,6 +72,7 @@ export function useAdminContent(): UseAdminContentReturn {
       const data = json as any
       debug('!!! USE_ADMIN_CONTENT_FETCHED raw=' + JSON.stringify(data)?.slice(0,500))
       setSections(data.sections || [])
+      setPage(data.page || null)
       debug(`!!! USE_ADMIN_CONTENT_FETCHED sections=${data.sections?.length}`)
     } catch (e: any) {
       debug('!!! USE_ADMIN_CONTENT_ERROR error=' + e?.message + ' stack=' + e?.stack?.slice(0,500))
@@ -158,10 +175,22 @@ export function useAdminContent(): UseAdminContentReturn {
     setSections((prev) => prev.filter((s) => s.id !== id))
   }
 
+  const updatePage = async (patch: Partial<AdminPage>) => {
+    const slug = page?.slug || 'home'
+    debug(`!!! USE_ADMIN_CONTENT_UPDATE_PAGE slug=${slug} patch=${JSON.stringify(patch)}`)
+    const { json } = await fetchJson(`/api/admin/pages/${slug}`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    } as any)
+    setPage(json as AdminPage)
+  }
+
   return {
     sections,
+    page,
     loading,
     error,
+    updatePage,
     updateSection,
     updateItem,
     createSection,

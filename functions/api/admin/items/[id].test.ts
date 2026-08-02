@@ -41,10 +41,12 @@ describe('PUT /api/admin/items/:id', () => {
             const id = args[args.length - 1]
             const item = mockItems.find((i) => i.id === id)
             if (item) {
-              // args: title, body, image_url, sort_order, is_visible, icon, link_url, id
+              // args: title, body, image_url, sort_order, is_visible, icon, link_url, link_text, author, rating, image_alt, id
               if (args[0] !== undefined) item.title = args[0]
               if (args[1] !== undefined) item.body = args[1]
               if (args[2] !== undefined) item.image_url = args[2]
+              ;(item as any).rating = args[9]
+              ;(item as any).image_alt = args[10]
             }
             return { success: true, meta: { changes: 1 } }
           }
@@ -105,6 +107,37 @@ describe('PUT /api/admin/items/:id', () => {
     expect(res.status).toBe(200)
     const json = (await res.json()) as any
     expect(json.image_url).toMatch(/\.webp$/)
+  })
+
+  it('stores a star rating the owner picked', async () => {
+    const { onRequestPut } = await import('./[id]')
+    const request = mockRequest('PUT', 'http://localhost/api/admin/items/item1', { rating: 3 })
+    const res = await onRequestPut({ request, env: { ENVIRONMENT: 'local', DB: mockD1 } as any, params: { id: 'item1' } } as any)
+    expect(res.status).toBe(200)
+    expect((await res.json() as any).rating).toBe(3)
+  })
+
+  it.each([0, 6, 2.5, 'five'])('rejects %p as a rating rather than storing it', async (bad) => {
+    const { onRequestPut } = await import('./[id]')
+    const request = mockRequest('PUT', 'http://localhost/api/admin/items/item1', { rating: bad })
+    const res = await onRequestPut({ request, env: { ENVIRONMENT: 'local', DB: mockD1 } as any, params: { id: 'item1' } } as any)
+    expect(res.status).toBe(400)
+    expect((await res.json() as any).error).toMatch(/1 to 5/)
+  })
+
+  it('leaves the stored rating alone when the patch does not mention it', async () => {
+    const { onRequestPut } = await import('./[id]')
+    await onRequestPut({ request: mockRequest('PUT', 'http://localhost/api/admin/items/item1', { rating: 4 }), env: { ENVIRONMENT: 'local', DB: mockD1 } as any, params: { id: 'item1' } } as any)
+    const res = await onRequestPut({ request: mockRequest('PUT', 'http://localhost/api/admin/items/item1', { title: 'Renamed' }), env: { ENVIRONMENT: 'local', DB: mockD1 } as any, params: { id: 'item1' } } as any)
+    expect((await res.json() as any).rating).toBe(4)
+  })
+
+  it('stores the image description the owner wrote', async () => {
+    const { onRequestPut } = await import('./[id]')
+    const request = mockRequest('PUT', 'http://localhost/api/admin/items/item1', { image_alt: 'Jane at her desk sketching a logo' })
+    const res = await onRequestPut({ request, env: { ENVIRONMENT: 'local', DB: mockD1 } as any, params: { id: 'item1' } } as any)
+    expect(res.status).toBe(200)
+    expect((await res.json() as any).image_alt).toBe('Jane at her desk sketching a logo')
   })
 
   it('allows JWT in production', async () => {

@@ -4,12 +4,12 @@
  *   mcr.microsoft.com/playwright:v1.50.0-noble sh -c "... node verify-final.mjs"
  */
 import { chromium } from 'playwright'
+import { HERO_PNG } from '/app/scripts/lib/testPng.mjs'
 
 const BASE = process.env.BASE_URL || 'http://frontend:5173'
-const PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP4z8CAFWEXHbQSACj/P8Fu7N9hAAAAAElFTkSuQmCC',
-  'base64',
-)
+// A real 1200x900 PNG. An 8x8 fixture is smaller than any slot the site renders, and
+// the uploader now refuses undersized images for exactly that reason.
+const PNG = HERO_PNG
 const out = []
 const check = (name, pass, detail = '') => {
   out.push(pass)

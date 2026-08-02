@@ -5,12 +5,12 @@
  *   mcr.microsoft.com/playwright:v1.50.0-noble sh -c "... node verify-uiux-round7.mjs"
  */
 import { chromium } from 'playwright'
+import { HERO_PNG } from '/app/scripts/lib/testPng.mjs'
 
 const BASE = process.env.BASE_URL || 'http://frontend:5173'
-const PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP4z8CAFWEXHbQSACj/P8Fu7N9hAAAAAElFTkSuQmCC',
-  'base64',
-)
+// A real 1200x900 PNG. An 8x8 fixture is smaller than any slot the site renders, and
+// the uploader now refuses undersized images for exactly that reason.
+const PNG = HERO_PNG
 const out = []
 const check = (name, pass, detail = '') => {
   out.push(pass)
@@ -60,7 +60,7 @@ try {
     .filter((l) => l.length > 8 && !/^\d/.test(l))
     .filter((l) => !adminText.includes(l))
     // Booking UI is app chrome, not owner content.
-    .filter((l) => !/spam check|available|Book a meeting|Pick a time|Select a day|Manage bookings|Look up or cancel|Email address|Find my bookings|weekday in the next|Booking opens|free slots|Skip to content|Remote-first|rights reserved|Get in touch|30-min call|Strategic brand design|System health/i.test(l))
+    .filter((l) => !/spam check|available|Book a meeting|Pick a time|Select a day|Manage bookings|Look up or cancel|Email address|Find my bookings|weekday in the next|Booking opens|First opening|free slots|Skip to content|Remote-first|rights reserved|Get in touch|30-min call|Strategic brand design|System health/i.test(l))
   check('no live copy is missing from the admin editor', orphaned.length === 0, orphaned.slice(0, 4).join(' | '))
 
   const ctaProbe = 'R7 VERIFY SUBHEAD'

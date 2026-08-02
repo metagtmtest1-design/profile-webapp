@@ -52,7 +52,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
       return new Response(JSON.stringify({ error: `Item not found: ${id}` }), { status: 404, headers: commonHeaders })
     }
 
-    // Allow partial update — title, body, image_url, sort_order, is_visible, icon, link_url, link_text, author
+    // Allow partial update — title, body, image_url, sort_order, is_visible, icon, link_url, link_text, author, rating, image_alt
     const title = body.title !== undefined ? body.title : existing.title
     const bodyText = body.body !== undefined ? body.body : existing.body
     const image_url = body.image_url !== undefined ? body.image_url : existing.image_url
@@ -62,6 +62,18 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
     const link_url = body.link_url !== undefined ? body.link_url : existing.link_url
     const link_text = body.link_text !== undefined ? body.link_text : existing.link_text
     const author = body.author !== undefined ? body.author : existing.author
+
+    // A star rating outside 1–5 would render as a broken row of stars, so reject it
+    // rather than store it: the admin's picker can only produce 1–5, so anything else
+    // is a bad request, not a value to clamp silently.
+    if (body.rating !== undefined && body.rating !== null) {
+      const n = Number(body.rating)
+      if (!Number.isInteger(n) || n < 1 || n > 5) {
+        return new Response(JSON.stringify({ error: 'rating must be a whole number from 1 to 5' }), { status: 400, headers: commonHeaders })
+      }
+    }
+    const rating = body.rating !== undefined ? body.rating : existing.rating
+    const image_alt = body.image_alt !== undefined ? body.image_alt : existing.image_alt
 
     // Validate image_url if provided — must be portfolio path or external https? For free tier we enforce portfolio/* or https:// for legacy unsplash
     if (body.image_url !== undefined && typeof body.image_url === 'string' && body.image_url) {
@@ -73,8 +85,8 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env, params })
     }
 
     const updateStmt = db
-      .prepare('UPDATE section_items SET title = ?, body = ?, image_url = ?, sort_order = ?, is_visible = ?, icon = ?, link_url = ?, link_text = ?, author = ? WHERE id = ?')
-      .bind(title, bodyText, image_url, sort_order, is_visible, icon, link_url, link_text, author, id)
+      .prepare('UPDATE section_items SET title = ?, body = ?, image_url = ?, sort_order = ?, is_visible = ?, icon = ?, link_url = ?, link_text = ?, author = ?, rating = ?, image_alt = ? WHERE id = ?')
+      .bind(title, bodyText, image_url, sort_order, is_visible, icon, link_url, link_text, author, rating ?? null, image_alt ?? null, id)
     await updateStmt.run()
 
     const updatedStmt = db.prepare('SELECT * FROM section_items WHERE id = ?').bind(id)

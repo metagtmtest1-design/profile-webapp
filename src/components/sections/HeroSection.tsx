@@ -42,7 +42,7 @@ export function HeroSection({ section, items, anchors }: HeroSectionProps) {
           {first?.image_url ? (
             <div className="relative">
               <div className="absolute -inset-3 bg-slate-50 rounded-2xl -z-10 rotate-1"></div>
-              <SafeImage src={first.image_url} alt="" className="w-full rounded-2xl shadow-lg object-cover aspect-[4/3] h-auto" loading="lazy" decoding="async" />
+              <SafeImage src={first.image_url} alt={first.image_alt || 'Portrait of the site owner'} className="w-full rounded-2xl shadow-lg object-cover aspect-[4/3] h-auto" loading="lazy" decoding="async" />
             </div>
           ) : (
             <div className="w-full aspect-[4/3] bg-slate-50 border rounded-2xl flex items-center justify-center text-gray-400">Illustration</div>

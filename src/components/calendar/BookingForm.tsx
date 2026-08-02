@@ -4,6 +4,7 @@ import { createBooking } from '../../lib/api'
 import { generateIcsContent, downloadIcsFile } from '../../lib/ics'
 import { formatSlotRange } from '../../lib/datetime'
 import { debug } from '../../lib/debug'
+import { BOOKING_MESSAGES } from '../../lib/bookingMessages'
 
 export interface BookingFormProps {
   slot: CalendarSlot
@@ -129,15 +130,21 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
     }
   }, [renderTurnstile])
 
+  /**
+   * Every problem at once. This used to return the first failure only, so submitting an
+   * empty form said "First name is required", and the visitor had to submit three more
+   * times to discover the other three fields.
+   */
   const validate = (): string | null => {
-    if (!firstName.trim()) return 'First name is required'
-    if (!lastName.trim()) return 'Last name is required'
-    if (!email.trim()) return 'Email is required'
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Invalid email format'
-    if (!slot?.start || !slot?.end) return 'Slot is required'
+    const problems: string[] = []
+    if (!firstName.trim()) problems.push('First name is required')
+    if (!lastName.trim()) problems.push('Last name is required')
+    if (!email.trim()) problems.push('Email is required')
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) problems.push('Invalid email format')
+    if (!slot?.start || !slot?.end) problems.push('Slot is required')
     const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    if (!isLocalHost && !turnstileToken) return 'Please finish the spam check above, then try again.'
-    return null
+    if (!isLocalHost && !turnstileToken) problems.push('Please finish the spam check above, then try again.')
+    return problems.length ? problems.join('. ') : null
   }
 
   const doBooking = async (intentOverride?: boolean) => {
@@ -267,7 +274,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         <p className="text-xs text-gray-500 mt-2">No email yet? Check your spam folder.</p>
         <div className="flex gap-2 mt-4">
           {onCancel && (
-            <button onClick={() => { setPending(null); resetTurnstile(); }} className="px-6 py-3 border rounded-full text-sm font-medium hover:bg-white">
+            <button onClick={() => { setPending(null); resetTurnstile(); }} className="px-6 py-3 border border-slate-500 rounded-full text-sm font-medium hover:bg-white">
               Back
             </button>
           )}
@@ -299,18 +306,19 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
         <p className="text-sm mb-3">
           Meet: <a href={success.meetLink} className="underline" target="_blank" rel="noopener noreferrer">{success.meetLink}</a>
         </p>
+        {/* Neither box prints the vendor's error. Resend's 422 tells the visitor to
+            "use our testing email address" and read Resend's documentation — support copy
+            aimed at a developer, shown to a prospective client. It goes to the DEV console. */}
         {isFakeMeet && (
           <div className="p-3 border border-amber-300 bg-amber-50 rounded-lg text-xs text-amber-800 mb-3">
-            <div className="font-semibold">⚠️ This video link is a placeholder</div>
-            <div>Your booking is saved, but the calendar connection isn't set up yet — the site owner has been notified and will send the real link.</div>
-            {success.gcalError && <div className="mt-1 font-mono text-[11px] break-all">Error: {success.gcalError}</div>}
+            <div className="font-semibold">{BOOKING_MESSAGES.placeholderMeetLink.heading}</div>
+            <div>{BOOKING_MESSAGES.placeholderMeetLink.detail}</div>
           </div>
         )}
         {success.emailResult && !success.emailResult.success && (
           <div className="p-3 border border-orange-300 bg-orange-50 rounded-lg text-xs text-orange-800 mb-3">
-            <div className="font-semibold">📧 Email not sent — but booking saved</div>
-            <div>{success.emailResult.error || 'The confirmation email could not be sent.'}</div>
-            <div className="mt-1 text-[11px]">Your meeting is still booked — save the details below.</div>
+            <div className="font-semibold">{BOOKING_MESSAGES.emailNotSent.heading}</div>
+            <div>{BOOKING_MESSAGES.emailNotSent.detail}</div>
           </div>
         )}
         {success.emailResult && success.emailResult.success && success.emailResult.source === 'live' && (
@@ -322,7 +330,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
           <button onClick={handleDownloadIcs} className="px-6 py-3 bg-slate-900 text-white rounded-full text-sm font-semibold hover:bg-black leading-none">
             Download invite (.ics)
           </button>
-          <a href={success.cancelUrl} className="px-6 py-3 rounded-full border border-red-200 bg-white text-red-700 text-sm font-semibold hover:bg-red-50 leading-none inline-flex items-center justify-center">
+          <a href={success.cancelUrl} className="px-6 py-3 rounded-full border border-red-600 bg-white text-red-700 text-sm font-semibold hover:bg-red-50 leading-none inline-flex items-center justify-center">
             Cancel meeting
           </a>
           <button onClick={() => navigator.clipboard.writeText(success.meetLink)} className="px-6 py-3 bg-black text-white rounded-full text-sm font-medium leading-none">
@@ -330,7 +338,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
           </button>
         </div>
         {onCancel && (
-          <button onClick={onCancel} className="mt-6 px-6 py-3 border rounded-full text-sm font-medium hover:bg-gray-50 leading-none">
+          <button onClick={onCancel} className="mt-6 px-6 py-3 border border-slate-500 rounded-full text-sm font-medium hover:bg-gray-50 leading-none">
             Close
           </button>
         )}
@@ -346,7 +354,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
           <p className="text-xs text-gray-500 mt-1">A calendar invite with a video link is sent as soon as you book.</p>
         </div>
         {onCancel && (
-          <button type="button" onClick={onCancel} aria-label="Close" className="w-8 h-8 rounded-full border bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm">
+          <button type="button" onClick={onCancel} aria-label="Close" className="w-8 h-8 rounded-full border border-slate-500 bg-white text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm">
             ✕
           </button>
         )}
@@ -369,7 +377,7 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
             >
               {loading ? 'Booking…' : 'Confirm and book again'}
             </button>
-            <button type="button" onClick={() => { setWarning(null); setConfirmIntent(false); resetTurnstile(); }} className="px-3 py-2 border rounded-full text-xs bg-white hover:bg-gray-50">
+            <button type="button" onClick={() => { setWarning(null); setConfirmIntent(false); resetTurnstile(); }} className="px-3 py-2 border border-slate-500 rounded-full text-xs bg-white hover:bg-gray-50">
               Cancel
             </button>
           </div>
@@ -377,7 +385,9 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
       )}
 
       {error && (
-        <div className="p-3 border border-red-300 bg-red-50 rounded-lg text-sm text-red-700 mb-4">
+        // role="alert" so the failure is announced; ManageBookings already had one and
+        // this box did not, so screen-reader users got silence on a failed submit.
+        <div className="p-3 border border-red-300 bg-red-50 rounded-lg text-sm text-red-700 mb-4" role="alert">
           {error}
         </div>
       )}
@@ -385,27 +395,27 @@ export function BookingForm({ slot, onSuccess, onCancel }: BookingFormProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label htmlFor="firstName" className="block text-xs font-semibold mb-1">First name *</label>
-          <input id="firstName" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" required />
+          <input id="firstName" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border border-slate-500 rounded-lg px-3 py-2 text-sm" required />
         </div>
         <div>
           <label htmlFor="lastName" className="block text-xs font-semibold mb-1">Last name *</label>
-          <input id="lastName" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" required />
+          <input id="lastName" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border border-slate-500 rounded-lg px-3 py-2 text-sm" required />
         </div>
       </div>
 
       <div className="mt-4">
         <label htmlFor="email" className="block text-xs font-semibold mb-1">Email *</label>
-        <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" required />
+        <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border border-slate-500 rounded-lg px-3 py-2 text-sm" required />
       </div>
 
       <div className="mt-4">
         <label htmlFor="phone" className="block text-xs font-semibold mb-1">Phone (optional)</label>
-        <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="+1 (555) ..." />
+        <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border border-slate-500 rounded-lg px-3 py-2 text-sm" placeholder="+1 (555) ..." />
       </div>
 
       <div className="mt-4">
         <label htmlFor="purpose" className="block text-xs font-semibold mb-1">Purpose</label>
-        <textarea id="purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" rows={3} placeholder="Brand strategy intro, logo review, etc." />
+        <textarea id="purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} className="w-full border border-slate-500 rounded-lg px-3 py-2 text-sm" rows={3} placeholder="Brand strategy intro, logo review, etc." />
       </div>
 
       {/* Turnstile widget — invisible challenge on booking form */}

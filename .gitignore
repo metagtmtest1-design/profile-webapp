@@ -161,3 +161,7 @@ coverage/
 
 # Local UI verification screenshots
 tmp-e2e/
+
+# Per-round scratch scripts written by the UI/UX review agents. Disposable and
+# regenerable; the durable harness is scripts/pw.sh + scripts/verify-*.mjs.
+scripts/uiux-r*

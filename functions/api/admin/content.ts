@@ -75,6 +75,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
           slug: page.slug,
           title: page.title,
           meta_description: page.meta_description,
+          site_name: (page as any).site_name ?? null,
+          footer_tagline: (page as any).footer_tagline ?? null,
         },
         sections: sectionsWithItems,
         meta: {
